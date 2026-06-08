@@ -476,6 +476,8 @@ function loadSavedState() {
 // 初始加载
 loadSavedState();
 refreshScanStatus();
+// 打开时自动扫描最新数据
+setTimeout(function() { startScan(); }, 1500);
 </script>
 </body>
 </html>
