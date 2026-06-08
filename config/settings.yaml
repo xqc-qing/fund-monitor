@@ -1,0 +1,8 @@
+# 扫描设置
+scan:
+  fund_types:            # 扫描哪些基金类型
+    - 股票型
+    - 指数型
+  candidate_per_type: 80 # 每种类型取近1年表现最差的多少只
+  max_workers: 15        # 并发线程数
+  output_top: 40         # 最终展示前多少名

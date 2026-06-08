@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基金监测</title>
+<style>
+  :root {
+    --bg: #0f1117; --card: #1a1d27; --border: #2a2d37;
+    --text: #e1e4eb; --muted: #8b8fa3; --accent: #4f8cff;
+    --red: #f44b5b; --green: #2ecc71; --orange: #f39c12;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh;
+  }
+  .app { max-width:1100px; margin:0 auto; padding:24px 20px; }
+
+  /* Tabs */
+  .tabs { display:flex; gap:4px; margin-bottom:24px; border-bottom:1px solid var(--border); }
+  .tab {
+    padding:12px 24px; cursor:pointer; font-size:14px; font-weight:500;
+    color:var(--muted); border-bottom:2px solid transparent; transition:all 0.2s;
+  }
+  .tab:hover { color:var(--text); }
+  .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  /* Header */
+  .header {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:20px;
+  }
+  .header h2 { font-size:18px; font-weight:600; }
+  .header-actions { display:flex; gap:8px; }
+
+  /* Buttons */
+  .btn {
+    padding:8px 18px; border-radius:7px; border:none; cursor:pointer;
+    font-size:13px; font-weight:500; transition:all 0.2s;
+  }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { opacity:0.85; }
+  .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
+  .btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
+  .btn-outline:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-danger { background:transparent; border:1px solid var(--red); color:var(--red); }
+  .btn-danger:hover { background:var(--red); color:#fff; }
+  .btn-sm { padding:4px 10px; font-size:11px; border-radius:5px; }
+
+  /* Stats */
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+  .stat-card {
+    background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:16px; text-align:center;
+  }
+  .stat-card .value { font-size:28px; font-weight:700; }
+  .stat-card .label { color:var(--muted); font-size:12px; margin-top:2px; }
+
+  /* Progress */
+  .progress-wrap { margin-bottom:20px; display:none; }
+  .progress-wrap.active { display:block; }
+  .progress-bar { height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--accent); border-radius:3px; transition:width 0.3s; width:0%; }
+  .progress-text { color:var(--muted); font-size:12px; margin-top:6px; }
+
+  /* Log */
+  .log-area {
+    background:var(--card); border:1px solid var(--border); border-radius:8px;
+    padding:10px 14px; max-height:160px; overflow-y:auto; margin-bottom:20px;
+    font-size:11px; font-family:"SF Mono","Consolas",monospace; color:var(--muted);
+    display:none;
+  }
+  .log-area.active { display:block; }
+  .log-area .line { padding:1px 0; }
+
+  /* Table */
+  .table-wrap { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .table-wrap table { width:100%; border-collapse:collapse; font-size:13px; }
+  .table-wrap th {
+    text-align:left; padding:10px 14px; background:#11131a;
+    color:var(--muted); font-weight:500; font-size:11px; border-bottom:1px solid var(--border);
+  }
+  .table-wrap td { padding:9px 14px; border-bottom:1px solid var(--border); }
+  .table-wrap tr:last-child td { border-bottom:none; }
+  .table-wrap tr:hover td { background:rgba(79,140,255,0.04); }
+
+  .tag {
+    display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:500;
+  }
+  .tag-stock { background:rgba(244,75,91,0.15); color:var(--red); }
+  .tag-index { background:rgba(79,140,255,0.15); color:var(--accent); }
+  .tag-etf { background:rgba(46,204,113,0.15); color:var(--green); }
+  .tag-open { background:rgba(243,156,18,0.15); color:var(--orange); }
+
+  .dist-badge {
+    display:inline-block; padding:3px 10px; border-radius:5px; font-weight:600; font-size:11px;
+  }
+  .dist-critical { background:rgba(244,75,91,0.18); color:var(--red); }
+  .dist-near { background:rgba(243,156,18,0.18); color:var(--orange); }
+  .dist-safe { background:rgba(46,204,113,0.12); color:var(--green); }
+
+  .empty { text-align:center; padding:40px 20px; color:var(--muted); }
+  .empty .icon { font-size:36px; margin-bottom:10px; }
+
+  /* Form */
+  .form-row { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px; }
+  .form-group { display:flex; flex-direction:column; gap:4px; }
+  .form-group label { font-size:11px; color:var(--muted); }
+  .form-group input, .form-group select {
+    background:var(--card); border:1px solid var(--border); color:var(--text);
+    padding:8px 12px; border-radius:6px; font-size:13px; outline:none;
+  }
+  .form-group input:focus, .form-group select:focus { border-color:var(--accent); }
+  .form-group input { width:120px; }
+  .form-group input.wide { width:180px; }
+
+  .scan-time { color:var(--muted); font-size:12px; margin-bottom:14px; }
+
+  /* Alert row */
+  .alert-row { background:rgba(244,75,91,0.06); }
+  .alert-badge {
+    display:inline-block; padding:2px 8px; border-radius:4px;
+    font-size:11px; font-weight:600;
+  }
+  .alert-on { background:rgba(244,75,91,0.18); color:var(--red); }
+  .alert-off { background:rgba(46,204,113,0.12); color:var(--green); }
+
+  .fund-link { color:var(--accent); text-decoration:none; cursor:pointer; }
+  .fund-link:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('scan')">全场扫描</div>
+    <div class="tab" onclick="switchTab('watch')">我的盯盘</div>
+  </div>
+
+  <!-- ==================== 全场扫描 ==================== -->
+  <div class="tab-content active" id="tab-scan">
+    <div class="header">
+      <h2>全场基金低点扫描</h2>
+      <div class="header-actions">
+        <button class="btn btn-outline btn-sm" onclick="refreshScan()">刷新结果</button>
+        <button class="btn btn-primary" id="btnScan" onclick="startScan()">开始扫描</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="value" id="statFound" style="color:var(--green)">-</div>
+        <div class="label">接近一年低点</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" id="statTotal">-</div>
+        <div class="label">已扫描候选基金</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" id="statTime" style="font-size:20px">-</div>
+        <div class="label">上次扫描时间</div>
+      </div>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-text" id="progressText">准备中...</div>
+    </div>
+
+    <div class="log-area" id="logArea"></div>
+    <div class="scan-time" id="scanTime"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>代码</th><th>名称</th><th>当前净值</th><th>1年最低</th><th>距低点</th><th>低点日期</th><th>类型</th><th>操作</th></tr>
+        </thead>
+        <tbody id="resultTable">
+          <tr><td colspan="9"><div class="empty"><div class="icon">-</div><div>点击「开始扫描」查看结果</div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==================== 我的盯盘 ==================== -->
+  <div class="tab-content" id="tab-watch">
+    <div class="header">
+      <h2>我的盯盘列表</h2>
+      <div class="header-actions">
+        <button class="btn btn-primary" id="btnCheck" onclick="checkWatchlist()">立即检查</button>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>基金代码 *</label>
+        <input id="addCode" placeholder="如 110022">
+      </div>
+      <div class="form-group">
+        <label>名称</label>
+        <input id="addName" class="wide" placeholder="如 易方达消费行业">
+      </div>
+      <div class="form-group">
+        <label>类型</label>
+        <select id="addType">
+          <option value="open_fund">场外基金</option>
+          <option value="etf">场内ETF</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>目标价</label>
+        <input id="addBelow" placeholder="选填">
+      </div>
+      <div class="form-group">
+        <label>跌幅提醒%</label>
+        <input id="addDrop" placeholder="选填 如-3">
+      </div>
+      <button class="btn btn-outline" onclick="addFund()" style="height:36px">+ 添加</button>
+    </div>
+
+    <div class="stats" id="watchStats" style="display:none">
+      <div class="stat-card">
+        <div class="value" id="watchCount">0</div>
+        <div class="label">自选基金数量</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" id="watchTriggered" style="color:var(--red)">0</div>
+        <div class="label">触发提醒</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" id="watchCheckTime" style="font-size:16px">-</div>
+        <div class="label">上次检查时间</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>代码</th><th>名称</th><th>类型</th><th>当前价格</th><th>日涨跌</th><th>目标价</th><th>触发状态</th><th>操作</th></tr>
+        </thead>
+        <tbody id="watchTable">
+          <tr><td colspan="8"><div class="empty"><div>点击「立即检查」查看自选基金状态，或在上方添加基金</div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== Tab 切换 ====================
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', t.textContent.trim() === (name==='scan'?'全场扫描':'我的盯盘'));
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'watch') loadWatchlist();
+}
+
+// ==================== 全场扫描 ====================
+const btnScan = document.getElementById('btnScan');
+const progressWrap = document.getElementById('progressWrap');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+const logArea = document.getElementById('logArea');
+const resultTable = document.getElementById('resultTable');
+const scanTime = document.getElementById('scanTime');
+
+function startScan() {
+  btnScan.disabled = true; btnScan.textContent = '扫描中...';
+  progressWrap.classList.add('active'); logArea.classList.add('active');
+  logArea.innerHTML = ''; resultTable.innerHTML = '';
+
+  fetch('/api/scan', { method:'POST' }).then(r => r.json()).then(data => {
+    if (!data.ok) { alert('扫描已在运行中'); resetScanBtn(); return; }
+    listenProgress(); pollStatus();
+  });
+}
+
+function listenProgress() {
+  const es = new EventSource('/api/progress');
+  es.onmessage = function(e) {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'done') { es.close(); resetScanBtn(); progressWrap.classList.remove('active'); loadScanResults(); }
+    if (msg.type === 'error') { es.close(); resetScanBtn(); progressText.textContent = '扫描出错: ' + msg.text; }
+    if (msg.type === 'log') {
+      const div = document.createElement('div'); div.className = 'line'; div.textContent = msg.text;
+      logArea.appendChild(div); logArea.scrollTop = logArea.scrollHeight;
+    }
+  };
+}
+
+function pollStatus() {
+  fetch('/api/status').then(r => r.json()).then(s => {
+    if (s.total > 0) {
+      const pct = Math.round(s.progress / s.total * 100);
+      progressFill.style.width = pct + '%';
+      progressText.textContent = `进度: ${s.progress}/${s.total} (${pct}%)  |  已发现 ${s.found} 只接近低点`;
+      document.getElementById('statTotal').textContent = s.total;
+      document.getElementById('statFound').textContent = s.found;
+    }
+    document.getElementById('statTime').textContent = s.started_at || '-';
+    if (s.done) scanTime.textContent = '上次扫描: ' + s.started_at;
+    if (s.running) setTimeout(pollStatus, 1000);
+  });
+}
+
+function resetScanBtn() { btnScan.disabled = false; btnScan.textContent = '开始扫描'; }
+
+function loadScanResults() {
+  fetch('/api/results').then(r => r.json()).then(data => {
+    const rows = data.results;
+    if (!rows || rows.length === 0) {
+      resultTable.innerHTML = '<tr><td colspan="9"><div class="empty"><div>未发现接近低点的基金</div></div></td></tr>';
+      return;
+    }
+    resultTable.innerHTML = rows.map((r, i) => {
+      const d = r.distance_pct;
+      let cls = d <= 2 ? 'dist-critical' : (d <= 5 ? 'dist-near' : 'dist-safe');
+      let tagCls = r.type === '股票型' ? 'tag-stock' : 'tag-index';
+      let already = savedCodes.has(r.code);
+      const url = 'https://fund.eastmoney.com/' + r.code + '.html';
+      return `<tr>
+        <td>${i+1}</td><td style="font-family:monospace"><a class="fund-link" href="${url}" onclick="openFund('${r.code}');return false" title="在浏览器中查看详情" style="cursor:pointer">${r.code}</a></td><td>${esc(r.name)}</td>
+        <td style="font-family:monospace">${r.current_nav.toFixed(4)}</td>
+        <td style="font-family:monospace">${r.low_1y.toFixed(4)}</td>
+        <td><span class="dist-badge ${cls}">${d}%</span></td>
+        <td>${r.low_date}</td><td><span class="tag ${tagCls}">${r.type}</span></td>
+        <td>${already
+          ? '<span style="color:var(--muted);font-size:12px">已收藏</span>'
+          : `<button class="btn btn-outline btn-sm" onclick="quickAdd('${r.code}','${jesc(r.name)}','open_fund')">+ 收藏</button>`}
+        </td>
+      </tr>`;
+    }).join('');
+  });
+}
+
+function refreshScan() { loadScanResults(); refreshScanStatus(); }
+
+function refreshScanStatus() {
+  fetch('/api/status').then(r => r.json()).then(s => {
+    document.getElementById('statFound').textContent = s.found || '-';
+    document.getElementById('statTime').textContent = s.started_at || '-';
+    if (s.started_at) scanTime.textContent = '上次扫描: ' + s.started_at;
+  });
+}
+
+// ==================== 我的盯盘 ====================
+function loadWatchlist() {
+  fetch('/api/watchlist').then(r => r.json()).then(data => {
+    const funds = data.funds;
+    document.getElementById('watchCount').textContent = funds.length;
+    document.getElementById('watchStats').style.display = funds.length ? 'grid' : 'none';
+    if (funds.length === 0) {
+      document.getElementById('watchTable').innerHTML = '<tr><td colspan="8"><div class="empty"><div>还没有自选基金，在上方输入基金代码添加</div></div></td></tr>';
+      return;
+    }
+    document.getElementById('watchTable').innerHTML = funds.map(f => {
+      let typeTag = f.type === 'etf' ? '<span class="tag tag-etf">ETF</span>' : '<span class="tag tag-open">场外</span>';
+      const wurl = 'https://fund.eastmoney.com/' + f.code + '.html';
+      return `<tr id="row-${f.code}">
+        <td style="font-family:monospace"><a class="fund-link" href="${wurl}" onclick="openFund('${f.code}');return false" title="在浏览器中查看详情" style="cursor:pointer">${f.code}</a></td><td>${esc(f.name)}</td><td>${typeTag}</td>
+        <td style="font-family:monospace;color:var(--muted)">未检查</td><td style="color:var(--muted)">-</td>
+        <td>${f.alert_below || '-'}</td>
+        <td><span class="alert-badge alert-off">待检查</span></td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeFund('${f.code}')">删除</button></td>
+      </tr>`;
+    }).join('');
+  });
+}
+
+function addFund() {
+  const code = document.getElementById('addCode').value.trim();
+  const name = document.getElementById('addName').value.trim();
+  const type = document.getElementById('addType').value;
+  const below = document.getElementById('addBelow').value.trim();
+  const drop = document.getElementById('addDrop').value.trim();
+  if (!code) { alert('请输入基金代码'); return; }
+
+  const body = { code, name, type };
+  if (below) body.alert_below = parseFloat(below);
+  if (drop) body.daily_drop_pct = parseFloat(drop);
+
+  fetch('/api/watchlist/add', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
+    .then(r => r.json()).then(data => {
+      if (!data.ok) { alert(data.error); return; }
+      document.getElementById('addCode').value = '';
+      document.getElementById('addName').value = '';
+      document.getElementById('addBelow').value = '';
+      document.getElementById('addDrop').value = '';
+      loadWatchlist();
+    });
+}
+
+function removeFund(code) {
+  if (!confirm('确定删除 ' + code + ' 吗？')) return;
+  fetch('/api/watchlist/remove', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code}) })
+    .then(r => r.json()).then(data => { if (data.ok) loadWatchlist(); });
+}
+
+function checkWatchlist() {
+  const btn = document.getElementById('btnCheck');
+  btn.disabled = true; btn.textContent = '检查中...';
+
+  fetch('/api/watchlist/check', { method:'POST' }).then(r => r.json()).then(data => {
+    btn.disabled = false; btn.textContent = '立即检查';
+    document.getElementById('watchCheckTime').textContent = new Date().toLocaleTimeString();
+    document.getElementById('watchStats').style.display = 'grid';
+
+    if (!data.results || data.results.length === 0) { loadWatchlist(); return; }
+
+    let triggeredCount = 0;
+    document.getElementById('watchTable').innerHTML = data.results.map(r => {
+      let label = r.fund_type === 'etf' ? '价格' : '净值';
+      let priceStr = r.error ? '获取失败' : r.current_price.toFixed(4);
+      let changeStr = '-';
+      if (r.prev_price && r.current_price) {
+        let chg = ((r.current_price - r.prev_price) / r.prev_price * 100);
+        changeStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+      }
+      let triggered = r.triggered;
+      if (triggered) triggeredCount++;
+      let statusHtml = triggered
+        ? '<span class="alert-badge alert-on">! ' + r.reasons[0].substring(0,20) + '</span>'
+        : '<span class="alert-badge alert-off">未触发</span>';
+      let rowCls = triggered ? 'alert-row' : '';
+      let typeTag = r.fund_type === 'etf' ? '<span class="tag tag-etf">ETF</span>' : '<span class="tag tag-open">场外</span>';
+      return `<tr class="${rowCls}" id="row-${r.code}">
+        <td style="font-family:monospace"><a class="fund-link" href="${cUrl}" onclick="openFund('${r.code}');return false" title="在浏览器中查看详情" style="cursor:pointer">${r.code}</a></td><td>${esc(r.name)}</td><td>${typeTag}</td>
+        <td style="font-family:monospace">${priceStr}</td><td style="font-family:monospace">${changeStr}</td>
+        <td>${r.alert_below || '-'}</td><td>${statusHtml}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeFund('${r.code}')">删除</button></td>
+      </tr>`;
+    }).join('');
+    document.getElementById('watchCount').textContent = data.results.length;
+    document.getElementById('watchTriggered').textContent = triggeredCount;
+    if (triggeredCount > 0) {
+      document.getElementById('watchTriggered').style.color = 'var(--red)';
+    } else {
+      document.getElementById('watchTriggered').style.color = 'var(--green)';
+    }
+  });
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function jesc(s) { return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function openFund(code) {
+  window.open('https://fund.eastmoney.com/' + code + '.html', '_blank');
+}
+
+function quickAdd(code, name, type) {
+  fetch('/api/watchlist/add', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({code:code, name:name, type:type})
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      savedCodes.add(code);
+      loadScanResults();
+    }
+  });
+}
+
+// 全局收藏状态
+let savedCodes = new Set();
+
+function loadSavedState() {
+  fetch('/api/watchlist').then(r => r.json()).then(data => {
+    savedCodes = new Set(data.funds.map(f => f.code));
+  });
+}
+
+// 初始加载
+loadSavedState();
+refreshScanStatus();
+</script>
+</body>
+</html>

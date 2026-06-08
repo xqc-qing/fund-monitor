@@ -1,0 +1,1 @@
+CreateObject("WScript.Shell").Run "C:\Users\23625\AppData\Local\Programs\Python\Python311\python.exe src\gui.py", 0
