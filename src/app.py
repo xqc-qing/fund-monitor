@@ -222,6 +222,8 @@ def api_watchlist_add():
     ftype = data.get("type", "open_fund")
     alert_below = data.get("alert_below")
     daily_drop_pct = data.get("daily_drop_pct")
+    cost_nav = data.get("cost_nav")
+    buy_date = data.get("buy_date")
     if not code:
         return {"ok": False, "error": "请输入基金代码"}
     wl = _load_watchlist()
@@ -243,6 +245,7 @@ def api_watchlist_add():
     wl.append({
         "code": code, "name": name, "type": ftype,
         "alert_below": alert_below, "daily_drop_pct": daily_drop_pct,
+        "cost_nav": cost_nav, "buy_date": buy_date,
     })
     _save_watchlist(wl)
     return {"ok": True, "funds": wl, "auto_name": name, "auto_target": auto_target}
@@ -321,6 +324,52 @@ def api_fund_detail(code):
         return {"ok": True, "data": list(reversed(nav_data))}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# ============================================================
+# 路由 — Agent 智能分析
+# ============================================================
+
+
+@app.route("/api/agent/analyze", methods=["POST"])
+def api_agent_analyze():
+    """Agent 智能分析：规则引擎 + 技术指标 → 结构化 JSON。"""
+    from src.agent_analyzer import analyze, AnalysisRequest
+
+    data = request.get_json()
+    code = data.get("code", "").strip()
+    if not code:
+        return {"ok": False, "error": "缺少基金代码"}
+
+    # 从盯盘列表获取持仓信息
+    wl = _load_watchlist()
+    fund_info = next((f for f in wl if f["code"] == code), {})
+
+    name = fund_info.get("name") or data.get("name", code)
+    ftype = fund_info.get("type", "open_fund")
+    cost_nav = data.get("cost_nav") or fund_info.get("cost_nav")
+    buy_date = data.get("buy_date") or fund_info.get("buy_date")
+
+    # 获取当前价格
+    try:
+        from src.fetcher_watch import fetch_quote
+        quote = fetch_quote(code, ftype)
+        current_price = float(quote.current_price) if quote else 0
+    except Exception:
+        current_price = 0
+
+    req = AnalysisRequest(
+        code=code,
+        name=name,
+        fund_type=ftype,
+        current_price=current_price,
+        cost_nav=float(cost_nav) if cost_nav else None,
+        buy_date=str(buy_date)[:10] if buy_date else None,
+    )
+
+    result = analyze(req)
+    result["ok"] = True
+    return result
 
 
 # ============================================================

@@ -222,6 +222,14 @@
         <label>跌幅提醒%</label>
         <input id="addDrop" placeholder="选填 如-3">
       </div>
+      <div class="form-group">
+        <label>持仓成本</label>
+        <input id="addCost" placeholder="选填">
+      </div>
+      <div class="form-group">
+        <label>买入日期</label>
+        <input id="addBuyDate" placeholder="如 2026-06-01">
+      </div>
       <button class="btn btn-outline" onclick="addFund()" style="height:36px">+ 添加</button>
     </div>
 
@@ -249,6 +257,45 @@
           <tr><td colspan="8"><div class="empty"><div>点击「立即检查」查看自选基金状态，或在上方添加基金</div></div></td></tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Agent 分析卡片 -->
+    <div id="agentCard" style="display:none; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-top:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="font-size:15px; font-weight:600; margin:0;">Agent 智能分析</h3>
+        <button class="btn btn-outline btn-sm" onclick="runAgent()">重新分析</button>
+      </div>
+
+      <div id="agentSummary" style="padding:12px 16px; background:#11131a; border-radius:8px; margin-bottom:16px; font-size:13px; line-height:1.6;"></div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+        <div style="background:#11131a; padding:12px; border-radius:8px;">
+          <div style="color:var(--muted); font-size:11px; margin-bottom:4px;">当前状态</div>
+          <div id="agentStatus" style="font-size:14px; font-weight:600;"></div>
+        </div>
+        <div style="background:#11131a; padding:12px; border-radius:8px;">
+          <div style="color:var(--muted); font-size:11px; margin-bottom:4px;">买入信号</div>
+          <div id="agentBuySignal" style="font-size:14px; font-weight:600;"></div>
+        </div>
+        <div style="background:#11131a; padding:12px; border-radius:8px;">
+          <div style="color:var(--muted); font-size:11px; margin-bottom:4px;">止盈进度</div>
+          <div id="agentProfit" style="font-size:13px;"></div>
+        </div>
+        <div style="background:#11131a; padding:12px; border-radius:8px;">
+          <div style="color:var(--muted); font-size:11px; margin-bottom:4px;">风险等级</div>
+          <div id="agentRisk" style="font-size:14px; font-weight:600;"></div>
+        </div>
+      </div>
+
+      <div style="background:#11131a; padding:12px 16px; border-radius:8px; margin-bottom:12px;">
+        <div style="color:var(--muted); font-size:11px; margin-bottom:6px;">建议操作</div>
+        <div id="agentAction" style="font-size:13px; font-weight:500;"></div>
+      </div>
+
+      <div style="background:#11131a; padding:12px 16px; border-radius:8px;">
+        <div style="color:var(--muted); font-size:11px; margin-bottom:6px;">分析依据</div>
+        <div id="agentReasons" style="font-size:12px; color:var(--muted); line-height:1.8;"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -377,16 +424,20 @@ function loadWatchlist() {
 }
 
 function addFund() {
-  const code = document.getElementById('addCode').value.trim();
-  const name = document.getElementById('addName').value.trim();
-  const type = document.getElementById('addType').value;
-  const below = document.getElementById('addBelow').value.trim();
-  const drop = document.getElementById('addDrop').value.trim();
+  var code = document.getElementById('addCode').value.trim();
+  var name = document.getElementById('addName').value.trim();
+  var type = document.getElementById('addType').value;
+  var below = document.getElementById('addBelow').value.trim();
+  var drop = document.getElementById('addDrop').value.trim();
+  var cost = document.getElementById('addCost').value.trim();
+  var buyDate = document.getElementById('addBuyDate').value.trim();
   if (!code) { alert('请输入基金代码'); return; }
 
-  const body = { code, name, type };
+  var body = { code: code, name: name, type: type };
   if (below) body.alert_below = parseFloat(below);
   if (drop) body.daily_drop_pct = parseFloat(drop);
+  if (cost) body.cost_nav = parseFloat(cost);
+  if (buyDate) body.buy_date = buyDate;
 
   fetch('/api/watchlist/add', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
     .then(r => r.json()).then(data => {
@@ -395,6 +446,8 @@ function addFund() {
       document.getElementById('addName').value = '';
       document.getElementById('addBelow').value = '';
       document.getElementById('addDrop').value = '';
+      document.getElementById('addCost').value = '';
+      document.getElementById('addBuyDate').value = '';
       loadWatchlist();
     });
 }
@@ -443,7 +496,7 @@ function checkWatchlist() {
         '<td style="font-family:monospace">' + priceStr + '</td>' +
         '<td style="font-family:monospace">' + changeStr + '</td>' +
         '<td>' + (r.alert_below || '-') + '</td><td>' + statusHtml + '</td>' +
-        '<td><button class="btn btn-danger btn-sm" onclick="removeFund(\'' + r.code + '\')">删除</button></td></tr>';
+        '<td><button class="btn btn-danger btn-sm" onclick="removeFund(\'' + r.code + '\')">删除</button> <button class="btn btn-outline btn-sm" onclick="runAgentFor(\'' + r.code + '\')">分析</button></td></tr>';
     }).join('');
     document.getElementById('watchCount').textContent = data.results.length;
     var wtEl = document.getElementById('watchTriggered');
@@ -456,6 +509,52 @@ function checkWatchlist() {
     }
   }).catch(function(e) {
     document.getElementById('watchTable').innerHTML = '<tr><td colspan=\"8\"><div class=\"empty\"><div>网络错误: ' + e.message + '</div></div></td></tr>';
+  });
+}
+
+// ==================== Agent 分析 ====================
+var agentCode = '';
+function runAgentFor(code) { agentCode = code; runAgent(); }
+function runAgent() {
+  if (!agentCode) { alert('请先选一只基金'); return; }
+  document.getElementById('agentCard').style.display = 'block';
+  document.getElementById('agentSummary').textContent = '分析中...';
+
+  fetch('/api/agent/analyze', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({code: agentCode})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { document.getElementById('agentSummary').textContent = d.error; return; }
+
+    document.getElementById('agentSummary').innerHTML = '<strong>' + esc(d.fund_name) + ' (' + d.fund_code + ')</strong><br>' + esc(d.summary || '');
+
+    var statusEl = document.getElementById('agentStatus');
+    var status = d.current_status || '';
+    var sc = status === '接近止盈' ? 'var(--green)' : (status === '接近买点' ? 'var(--accent)' : 'var(--text)');
+    statusEl.innerHTML = '<span style=\"color:' + sc + '\">' + esc(status) + '</span>';
+
+    var buyEl = document.getElementById('agentBuySignal');
+    var bl = (d.buy_signal||{}).level || '无';
+    var bc = bl === '强' ? 'var(--green)' : (bl === '中' ? 'var(--accent)' : 'var(--muted)');
+    buyEl.innerHTML = '<span style=\"color:' + bc + ';font-size:18px\">' + esc(bl) + '</span><br><span style=\"font-size:11px;color:var(--muted)\">' + esc((d.buy_signal||{}).reason||'') + '</span>';
+
+    var tp = d.take_profit_signal || {};
+    document.getElementById('agentProfit').innerHTML = '当前收益率: <strong>' + esc(tp.current_return||'-') + '</strong><br>目标: ' + esc(tp.target_return||'15%') + '<br>距离目标: ' + esc(tp.distance_to_target||'-');
+
+    var rs = d.risk_signal || {};
+    var rl = rs.level || '低';
+    var rc = rl === '高' ? 'var(--red)' : (rl === '中' ? 'var(--orange)' : 'var(--green)');
+    document.getElementById('agentRisk').innerHTML = '<span style=\"color:' + rc + '\">' + esc(rl) + '</span>';
+
+    document.getElementById('agentAction').textContent = d.suggested_action || '-';
+
+    var reasons = d.reasoning || [];
+    document.getElementById('agentReasons').innerHTML = reasons.map(function(r){ return '  ' + esc(r); }).join('<br>');
+
+    document.getElementById('agentSummary').innerHTML += '<br><span style=\"color:var(--muted);font-size:10px\">' + esc(d.disclaimer||'') + '</span>';
+  }).catch(function(e){
+    document.getElementById('agentSummary').textContent = '分析请求失败: ' + e.message;
   });
 }
 
