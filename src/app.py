@@ -358,6 +358,8 @@ def api_agent_analyze():
     except Exception:
         current_price = 0
 
+    llm_config = data.get("llm_config")
+
     req = AnalysisRequest(
         code=code,
         name=name,
@@ -367,7 +369,7 @@ def api_agent_analyze():
         buy_date=str(buy_date)[:10] if buy_date else None,
     )
 
-    result = analyze(req)
+    result = analyze(req, llm_config)
     result["ok"] = True
     return result
 

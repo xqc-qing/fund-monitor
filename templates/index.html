@@ -139,12 +139,40 @@
     <div class="tab" onclick="switchTab('watch')">我的盯盘</div>
   </div>
 
+  
+  <!-- API -->
+  <div id="settingsPanel" style="display:none; background:var(--card); border:1px solid var(--accent); border-radius:10px; padding:16px 20px; margin-bottom:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <span style="font-size:14px; font-weight:600;">API 设置</span>
+      <span style="font-size:11px; color:var(--muted)">不填则使用纯规则引擎分析</span>
+    </div>
+    <div class="form-row" style="margin-bottom:0">
+      <div class="form-group">
+        <label>API Key</label>
+        <input id="apiKey" class="wide" style="width:240px" placeholder="sk-...">
+      </div>
+      <div class="form-group">
+        <label>API Base URL</label>
+        <input id="apiBase" class="wide" style="width:260px" placeholder="https://api.deepseek.com/v1">
+      </div>
+      <div class="form-group">
+        <label>Model</label>
+        <input id="apiModel" style="width:150px" placeholder="deepseek-chat">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="saveApiSettings()" style="height:36px">保存</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('settingsPanel').style.display='none'" style="height:36px">关闭</button>
+    </div>
+    <div id="apiStatus" style="font-size:11px; color:var(--green); margin-top:8px; display:none;">已保存</div>
+  </div>
+
   <!-- ==================== 全场扫描 ==================== -->
   <div class="tab-content active" id="tab-scan">
     <div class="header">
       <h2>全场基金低点扫描</h2>
       <div class="header-actions">
-        <button class="btn btn-outline btn-sm" onclick="refreshScan()">刷新结果</button>
+          <button class="btn btn-outline btn-sm" style="font-size:14px;padding:4px 10px" onclick="toggleSettings()" title="API设置">+</button>
+        <button class="btn btn-outline btn-sm" style="font-size:14px;padding:4px 10px" onclick="toggleSettings()" title="API设置">+</button>
+          <button class="btn btn-outline btn-sm" onclick="refreshScan()">刷新结果</button>
         <button class="btn btn-primary" id="btnScan" onclick="startScan()">开始扫描</button>
       </div>
     </div>
@@ -514,16 +542,44 @@ function checkWatchlist() {
 
 // ==================== Agent 分析 ====================
 var agentCode = '';
+
+// ==================== API 设置 ====================
+function toggleSettings() {
+  var p = document.getElementById('settingsPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  if (p.style.display === 'block') loadApiSettings();
+}
+function loadApiSettings() {
+  var cfg = {};
+  try { cfg = JSON.parse(localStorage.getItem('llmConfig') || '{}'); } catch(e) {}
+  document.getElementById('apiKey').value = cfg.key || '';
+  document.getElementById('apiBase').value = cfg.base || '';
+  document.getElementById('apiModel').value = cfg.model || '';
+}
+function saveApiSettings() {
+  var cfg = {
+    key: document.getElementById('apiKey').value.trim(),
+    base: document.getElementById('apiBase').value.trim(),
+    model: document.getElementById('apiModel').value.trim()
+  };
+  localStorage.setItem('llmConfig', JSON.stringify(cfg));
+  var s = document.getElementById('apiStatus');
+  s.style.display = 'block';
+  setTimeout(function(){ s.style.display = 'none'; }, 2000);
+}
 function runAgentFor(code) { agentCode = code; runAgent(); }
 function runAgent() {
   if (!agentCode) { alert('请先选一只基金'); return; }
   document.getElementById('agentCard').style.display = 'block';
   document.getElementById('agentSummary').textContent = '分析中...';
 
-  fetch('/api/agent/analyze', {
+  var llmCfg = {}; try { llmCfg = JSON.parse(localStorage.getItem('llmConfig') || '{}'); } catch(e) {}
+  var body = {code: agentCode};
+  if (llmCfg.key) body.llm_config = llmCfg;
+    fetch('/api/agent/analyze', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({code: agentCode})
+    body:JSON.stringify(body)
   }).then(function(r){ return r.json(); }).then(function(d){
     if (!d.ok) { document.getElementById('agentSummary').textContent = d.error; return; }
 

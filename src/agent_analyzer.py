@@ -76,9 +76,13 @@ class AnalysisRequest:
     buy_date: Optional[str] = None
 
 
-def _llm_analyze(req: AnalysisRequest, indicators: Dict) -> Optional[Dict]:
+def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Dict] = None) -> Optional[Dict]:
     """用 LLM 做完整分析，返回结构化 JSON。失败返回 None。"""
-    if not LLM_API_KEY:
+    # 优先用请求参数中的配置，否则用环境变量
+    key = (llm_config or {}).get("key") or LLM_API_KEY
+    base = (llm_config or {}).get("base") or LLM_API_BASE
+    model = (llm_config or {}).get("model") or LLM_MODEL
+    if not key:
         return None
 
     # 计算当前收益率
@@ -122,13 +126,13 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict) -> Optional[Dict]:
 """
     try:
         resp = requests.post(
-            f"{LLM_API_BASE}/chat/completions",
+            f"{base}/chat/completions",
             headers={
-                "Authorization": f"Bearer {LLM_API_KEY}",
+                "Authorization": f"Bearer {key}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": LLM_MODEL,
+                "model": model,
                 "messages": [
                     {"role": "system", "content": "你是基金分析助手。只输出 JSON，不要 markdown 代码块，不要额外解释。"},
                     {"role": "user", "content": prompt},
@@ -158,7 +162,7 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict) -> Optional[Dict]:
     return None
 
 
-def analyze(req: AnalysisRequest) -> Dict:
+def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None) -> Dict:
     """执行分析：优先 LLM → 失败则规则引擎。"""
 
     # 1. 获取历史数据 + 计算技术指标
@@ -181,7 +185,7 @@ def analyze(req: AnalysisRequest) -> Dict:
     )
 
     # 4. 尝试 LLM 分析
-    llm_result = _llm_analyze(req, indicators)
+    llm_result = _llm_analyze(req, indicators, llm_config)
 
     # 5. 合并结果
     if llm_result:
