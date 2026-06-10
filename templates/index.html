@@ -609,8 +609,8 @@ function switchSettingsTab(tab) {
 function loadAllSettings() {
   var ai = {}; try { ai = JSON.parse(localStorage.getItem("llmConfig") || "{}"); } catch(e) {}
   document.getElementById("aiProvider").value = ai.provider || "deepseek";
-  document.getElementById("aiModel").value = ai.model || "";
-  document.getElementById("aiBase").value = ai.base || "";
+  document.getElementById("aiModel").value = ai.model || "deepseek-chat";
+  document.getElementById("aiBase").value = ai.base || "https://api.deepseek.com/v1";
   var k = ai.key || "";
   var masked = k;
   if (k.length > 11) { masked = k.substring(0,3) + "****" + k.substring(k.length-4); }
