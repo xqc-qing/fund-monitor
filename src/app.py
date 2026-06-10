@@ -25,6 +25,7 @@ from src.storage import init_db, save_price_snapshot, already_alerted_today, mar
 import requests
 
 app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"))
+app.jinja_env.auto_reload = True  # 强制每次请求重新读模板，避免缓存旧页面
 
 WATCHLIST_FILE = PROJECT_ROOT / "data" / "watchlist.json"
 
@@ -156,9 +157,10 @@ def _lookup_fund_name(code: str, ftype: str) -> str:
 
 @app.after_request
 def _no_cache(response):
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 

@@ -41,9 +41,10 @@ def main():
             time.sleep(0.5)
 
     # 纯原生窗口：内嵌 Edge WebView2，无浏览器进程，无地址栏，无任何多余元素
+    # 加时间戳参数强制 WebView2 跳过缓存
     window = webview.create_window(
         title="基金监测",
-        url="http://127.0.0.1:8080",
+        url=f"http://127.0.0.1:8080?_={int(time.time())}",
         width=1200,
         height=800,
         min_size=(900, 600),
