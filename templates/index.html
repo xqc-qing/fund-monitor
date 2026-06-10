@@ -317,7 +317,16 @@ function pollStatus() {
       document.getElementById('statFound').textContent = s.found;
     }
     document.getElementById('statTime').textContent = s.started_at || '-';
-    if (s.done) scanTime.textContent = '上次扫描: ' + s.started_at;
+    if (s.done) {
+      scanTime.textContent = '上次扫描: ' + s.started_at;
+      // SSE 断了也能正常加载结果
+      if (progressWrap.classList.contains('active')) {
+        resetScanBtn();
+        progressWrap.classList.remove('active');
+        clearTimeout(scanTimeout);
+        loadScanResults();
+      }
+    }
     if (s.running) setTimeout(pollStatus, 1000);
   });
 }
