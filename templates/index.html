@@ -152,58 +152,58 @@
     </div>
     <div id="stab-content-ai">
       <div class="form-row" style="margin-bottom:12px">
-        <div class="form-group"><label>Provider</label>
+        <div class="form-group"><label>服务商</label>
           <select id="aiProvider" onchange="onProviderChange()" style="width:160px">
             <option value="deepseek">DeepSeek</option>
             <option value="openai">OpenAI</option>
-            <option value="custom">Custom</option>
+            <option value="custom">自定义</option>
           </select>
         </div>
-        <div class="form-group"><label>Model</label><input id="aiModel" style="width:160px" placeholder="deepseek-chat"></div>
-        <div class="form-group"><label>Temperature</label><input id="aiTemp" style="width:80px" placeholder="0.3"></div>
-        <div class="form-group"><label>Max Tokens</label><input id="aiMaxTokens" style="width:80px" placeholder="2000"></div>
+        <div class="form-group"><label>模型</label><input id="aiModel" style="width:160px" placeholder="deepseek-chat"></div>
+        <div class="form-group"><label>温度</label><input id="aiTemp" style="width:80px" placeholder="0.3"></div>
+        <div class="form-group"><label>最大Token</label><input id="aiMaxTokens" style="width:80px" placeholder="2000"></div>
       </div>
       <div class="form-row" style="margin-bottom:12px">
-        <div class="form-group"><label>API Base URL</label><input id="aiBase" class="wide" style="width:400px" placeholder="https://api.deepseek.com/v1"></div>
+        <div class="form-group"><label>API 地址</label><input id="aiBase" class="wide" style="width:400px" placeholder="https://api.deepseek.com/v1"></div>
       </div>
       <div class="form-row" style="margin-bottom:12px">
         <div class="form-group"><label>API Key</label><input id="aiKey" class="wide" style="width:400px" type="password" placeholder="sk-..."></div>
-        <button class="btn btn-outline btn-sm" onclick="toggleKeyVisibility()" style="height:36px;margin-top:18px">Show</button>
+        <button class="btn btn-outline btn-sm" onclick="toggleKeyVisibility()" style="height:36px;margin-top:18px">显示</button>
       </div>
       <div class="form-row" style="margin-bottom:12px;align-items:center;">
-        <label style="margin-right:12px;font-size:13px;"><input type="checkbox" id="aiEnable" checked style="margin-right:4px"> Enable AI</label>
-        <button class="btn btn-outline btn-sm" onclick="testApiConnection()">Test API</button>
+        <label style="margin-right:12px;font-size:13px;"><input type="checkbox" id="aiEnable" checked style="margin-right:4px"> 启用 AI</label>
+        <button class="btn btn-outline btn-sm" onclick="testApiConnection()">测试连接</button>
         <span id="testStatus" style="font-size:11px;margin-left:8px;"></span>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="saveAllSettings()">Save AI Config</button>
+      <button class="btn btn-primary btn-sm" onclick="saveAllSettings()">保存 AI 设置</button>
     </div>
     <div id="stab-content-trade" style="display:none;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-        <div class="form-group"><label>Target Profit (%)</label><input id="tradeTP" style="width:100px" value="15"></div>
-        <div class="form-group"><label>Review Loss (%)</label><input id="tradeReview" style="width:100px" value="-8"></div>
-        <div class="form-group"><label>Stop Buying Loss (%)</label><input id="tradeStopAdd" style="width:100px" value="-12"></div>
-        <div class="form-group"><label>Logic Fail Loss (%)</label><input id="tradeFail" style="width:100px" value="-15"></div>
-        <div class="form-group"><label>C Fund Min Days</label><input id="tradeMinDays" style="width:100px" value="7"></div>
-        <div class="form-group"><label>Low Point Lookback (d)</label><input id="tradeLookback" style="width:100px" value="30"></div>
-        <div class="form-group"><label>Near Low Threshold (%)</label><input id="tradeNearLow" style="width:100px" value="3"></div>
-        <div class="form-group"><label>Buy Style</label>
-          <select id="tradeBuyStyle" style="width:140px"><option value="一次性买入">One-time</option><option value="分批买入">Batch</option></select>
+        <div class="form-group"><label>止盈目标 (%)</label><input id="tradeTP" style="width:100px" value="15"></div>
+        <div class="form-group"><label>复盘线 (%)</label><input id="tradeReview" style="width:100px" value="-8"></div>
+        <div class="form-group"><label>停止加仓线 (%)</label><input id="tradeStopAdd" style="width:100px" value="-12"></div>
+        <div class="form-group"><label>逻辑失效线 (%)</label><input id="tradeFail" style="width:100px" value="-15"></div>
+        <div class="form-group"><label>C类最短持有 (天)</label><input id="tradeMinDays" style="width:100px" value="7"></div>
+        <div class="form-group"><label>低点判断周期 (天)</label><input id="tradeLookback" style="width:100px" value="30"></div>
+        <div class="form-group"><label>低点阈值 (%)</label><input id="tradeNearLow" style="width:100px" value="3"></div>
+        <div class="form-group"><label>买入方式</label>
+          <select id="tradeBuyStyle" style="width:140px"><option value="一次性买入">一次性买入</option><option value="分批买入">分批买入</option></select>
         </div>
-        <div class="form-group"><label>Fund Type</label>
-          <select id="tradeFundType" style="width:140px"><option value="C类基金">C Fund</option><option value="A类基金">A Fund</option><option value="ETF">ETF</option></select>
+        <div class="form-group"><label>基金类型</label>
+          <select id="tradeFundType" style="width:140px"><option value="C类基金">C类基金</option><option value="A类基金">A类基金</option><option value="ETF">ETF</option></select>
         </div>
       </div>
       <div style="margin-bottom:16px;">
-        <label style="margin-right:16px;font-size:13px;"><input type="checkbox" id="tradeEnableTP" checked> Profit Alert</label>
-        <label style="margin-right:16px;font-size:13px;"><input type="checkbox" id="tradeEnableRisk" checked> Risk Alert</label>
-        <label style="font-size:13px;"><input type="checkbox" id="tradeEnableFee" checked> Fee Alert</label>
+        <label style="margin-right:16px;font-size:13px;"><input type="checkbox" id="tradeEnableTP" checked> 止盈提醒</label>
+        <label style="margin-right:16px;font-size:13px;"><input type="checkbox" id="tradeEnableRisk" checked> 风险提醒</label>
+        <label style="font-size:13px;"><input type="checkbox" id="tradeEnableFee" checked> 赎回费提醒</label>
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-primary btn-sm" onclick="saveAllSettings()">Save Trade Rules</button>
-        <button class="btn btn-outline btn-sm" onclick="resetTradeDefaults()">Restore Defaults</button>
+        <button class="btn btn-primary btn-sm" onclick="saveAllSettings()">保存交易纪律</button>
+        <button class="btn btn-outline btn-sm" onclick="resetTradeDefaults()">恢复默认</button>
       </div>
     </div>
-    <div id="settingsSaved" style="font-size:11px;color:var(--green);margin-top:12px;display:none;">Saved</div>
+    <div id="settingsSaved" style="font-size:11px;color:var(--green);margin-top:12px;display:none;">已保存</div>
   </div>
 <!-- ==================== 全场扫描 ==================== -->
   <div class="tab-content active" id="tab-scan">
@@ -678,11 +678,11 @@ function testApiConnection() {
   var key = document.getElementById("aiKey").value.trim();
   var model = document.getElementById("aiModel").value.trim();
   var s = document.getElementById("testStatus");
-  if (!key) { s.textContent = "Enter Key first"; s.style.color = "var(--red)"; return; }
-  s.textContent = "Testing..."; s.style.color = "var(--muted)";
+  if (!key) { s.textContent = "请先填写 Key"; s.style.color = "var(--red)"; return; }
+  s.textContent = "测试中..."; s.style.color = "var(--muted)";
   fetch("/api/agent/test-api", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({base:base,key:key,model:model})})
-  .then(function(r){return r.json()}).then(function(d){s.textContent=d.ok?"Connected":"Failed: "+(d.error||"");s.style.color=d.ok?"var(--green)":"var(--red)"})
-  .catch(function(e){s.textContent="Error: "+e.message;s.style.color="var(--red)"});
+  .then(function(r){return r.json()}).then(function(d){s.textContent=d.ok?"连接成功":"失败: "+(d.error||"");s.style.color=d.ok?"var(--green)":"var(--red)"})
+  .catch(function(e){s.textContent="错误: "+e.message;s.style.color="var(--red)"});
 }
 
 function runAgentFor(code) { agentCode = code; runAgent(); }
