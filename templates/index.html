@@ -740,13 +740,25 @@ function runAgent() {
 
   var llmCfg = {}; try { llmCfg = JSON.parse(localStorage.getItem('llmConfig') || '{}'); } catch(e) {}
   var body = {code: agentCode}; var tr = {}; try { tr = JSON.parse(localStorage.getItem("tradeSettings") || "{}"); } catch(e) {} body.trade_settings = tr;
-  if (llmCfg.key) body.llm_config = llmCfg;
+  body.llm_config = llmCfg;  // 始终发送完整配置，确保 model/provider 等字段不丢失
+
+  // DEBUG: model 全链路追踪
+  console.log('[Agent] frontend_saved_model:', llmCfg.model);
+  console.log('[Agent] request_model_to_backend:', body.llm_config.model);
+  console.log('[Agent] full llm_config:', JSON.stringify(body.llm_config));
+
     fetch('/api/agent/analyze', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(body)
   }).then(function(r){ return r.json(); }).then(function(d){
     if (!d.ok) { document.getElementById('agentSummary').textContent = d.error; return; }
+
+    // DEBUG: 验证后端返回的 model 信息
+    console.log('[Agent] backend returned model_requested:', d.model_requested);
+    console.log('[Agent] backend returned model_used:', d.model_used);
+    console.log('[Agent] backend returned analysis_source:', d.analysis_source);
+    console.log('[Agent] backend returned source_label:', d.source_label);
 
     // --- 分析来源标识 ---
     var srcBox = document.getElementById('agentSourceBox');
@@ -761,9 +773,19 @@ function runAgent() {
     else if (d.analysis_source === 'fallback') sourceColor = 'var(--orange)';
     else sourceColor = 'var(--muted)';
 
-    // 逐行展示
+    // 逐行展示（model_requested 是前端输入，model_used 是实际发送给 API 的模型）
+    var modelDisplay = (d.analysis_source === 'rules' && !d.llm_used)
+      ? '无'
+      : (esc(d.provider||'') + ' / ' + esc(d.model_requested || d.model_used || ''));
+
     document.getElementById('agentSourceLine').innerHTML = '分析来源：<span style="color:'+sourceColor+'">' + esc(sl) + '</span>';
-    document.getElementById('agentModelLine').textContent = '使用模型：' + (d.analysis_source === 'rules' ? '无' : (esc(d.provider||'') + ' / ' + esc(modelName)));
+    document.getElementById('agentModelLine').textContent = '实际使用模型：' + modelDisplay;
+
+    // 如果 model_requested != model_used，说明发生了 fallback，追加说明
+    if (d.model_requested && d.model_used && d.model_requested !== d.model_used) {
+      document.getElementById('agentModelLine').textContent += ' (请求: ' + d.model_requested + ', 实际: ' + d.model_used + ')';
+    }
+
     document.getElementById('agentBasisLine').textContent = '判断基础：' + (d.basis || d.analysis_mode || '');
     document.getElementById('agentRulesLine').textContent = '使用规则：' + ((d.rules_used||[]).length > 0 ? d.rules_used.join('、') : '无');
 

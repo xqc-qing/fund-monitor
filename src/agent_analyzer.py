@@ -207,6 +207,10 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
     provider = cfg.get("provider", "")
     user_model = cfg.get("model")
     model_used = user_model if user_model else LLM_MODEL
+
+    # DEBUG: model 全链路追踪
+    logger.info("[Agent] backend_received_model=%s  llm_request_model=%s  model_used_in_result=%s",
+                repr(user_model), repr(model_used), repr(model_used))
     llm_enabled = cfg.get("enableAIAnalysis", True) if "enableAIAnalysis" in cfg else True
     key = cfg.get("key") or LLM_API_KEY
 
@@ -316,7 +320,8 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
     result["analysis_mode"] = analysis_mode
     result["basis"] = basis
     result["provider"] = provider
-    result["model_used"] = model_used
+    result["model_requested"] = user_model or ""   # 用户在前端输入的原始模型名
+    result["model_used"] = model_used               # 实际发送给 API 的模型名
     result["llm_used"] = llm_used
     result["fallback_reason"] = fallback_reason
     result["rules_used"] = rules_used
