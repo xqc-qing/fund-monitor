@@ -152,7 +152,7 @@
     </div>
     <div id="stab-content-ai">
       <div class="form-row" style="margin-bottom:12px">
-        <div class="form-group"><label>服务商</label>
+        <div class="form-group"><label>服务商 <span style="font-weight:400;color:var(--muted);font-size:10px">(选择你使用的AI服务)</span></label>
           <select id="aiProvider" onchange="onProviderChange()" style="width:160px">
             <option value="deepseek">DeepSeek</option>
             <option value="openai">OpenAI</option>
@@ -162,15 +162,20 @@
             <option value="custom">自定义</option>
           </select>
         </div>
-        <div class="form-group"><label>模型</label><input id="aiModel" style="width:160px" placeholder="deepseek-chat"></div>
+        <div class="form-group"><label>模型</label>
+          <select id="aiModel" style="width:200px">
+            <option value="deepseek-chat">deepseek-chat</option>
+            <option value="deepseek-reasoner">deepseek-reasoner (R1)</option>
+          </select>
+        </div>
         <div class="form-group"><label>温度</label><input id="aiTemp" style="width:80px" placeholder="0.3"></div>
         <div class="form-group"><label>最大Token</label><input id="aiMaxTokens" style="width:80px" placeholder="2000"></div>
       </div>
       <div class="form-row" style="margin-bottom:12px">
-        <div class="form-group"><label>API 地址</label><input id="aiBase" class="wide" style="width:400px" placeholder="https://api.deepseek.com/v1"></div>
+        <div class="form-group"><label>API 地址 <span style="font-weight:400;color:var(--muted);font-size:10px">(AI服务的网址，选服务商后自动填写)</span></label><input id="aiBase" class="wide" style="width:400px" placeholder="https://api.deepseek.com/v1"></div>
       </div>
       <div class="form-row" style="margin-bottom:12px">
-        <div class="form-group"><label>API Key</label><input id="aiKey" class="wide" style="width:400px" type="password" placeholder="sk-..."></div>
+        <div class="form-group"><label>API Key <span style="font-weight:400;color:var(--muted);font-size:10px">(在服务商网站申请，如 platform.deepseek.com)</span></label><input id="aiKey" class="wide" style="width:400px" type="password" placeholder="sk-..."></div>
         <button class="btn btn-outline btn-sm" onclick="toggleKeyVisibility()" style="height:36px;margin-top:18px">显示</button>
       </div>
       <div class="form-row" style="margin-bottom:12px;align-items:center;">
@@ -213,8 +218,7 @@
     <div class="header">
       <h2>全场基金低点扫描</h2>
       <div class="header-actions">
-          <button class="btn btn-outline btn-sm" style="font-size:14px;padding:4px 10px" onclick="toggleSettings()" title="API设置">+</button>
-        <button class="btn btn-outline btn-sm" style="font-size:14px;padding:4px 10px" onclick="toggleSettings()" title="API设置">+</button>
+          <button class="btn btn-outline btn-sm" style="font-size:14px;padding:4px 10px" onclick="toggleSettings()" title="设置">+</button>
           <button class="btn btn-outline btn-sm" onclick="refreshScan()">刷新结果</button>
         <button class="btn btn-primary" id="btnScan" onclick="startScan()">开始扫描</button>
       </div>
@@ -609,7 +613,11 @@ function switchSettingsTab(tab) {
 function loadAllSettings() {
   var ai = {}; try { ai = JSON.parse(localStorage.getItem("llmConfig") || "{}"); } catch(e) {}
   document.getElementById("aiProvider").value = ai.provider || "deepseek";
-  document.getElementById("aiModel").value = ai.model || "deepseek-chat";
+  var m = ai.model || "deepseek-chat";
+  var modelEl = document.getElementById("aiModel");
+  var found = false;
+  for (var i=0; i<modelEl.options.length; i++) { if (modelEl.options[i].value === m) { modelEl.value = m; found = true; break; } }
+  if (!found && m) { modelEl.innerHTML += '<option value="'+m+'">'+m+' (custom)</option>'; modelEl.value = m; }
   document.getElementById("aiBase").value = ai.base || "https://api.deepseek.com/v1";
   var k = ai.key || "";
   var masked = k;
@@ -676,11 +684,21 @@ function resetTradeDefaults() {
 }
 function onProviderChange() {
   var p = document.getElementById("aiProvider").value;
-  if (p === "deepseek") { document.getElementById("aiBase").value = "https://api.deepseek.com/v1"; document.getElementById("aiModel").value = "deepseek-chat"; }
-  if (p === "openai") { document.getElementById("aiBase").value = "https://api.openai.com/v1"; document.getElementById("aiModel").value = "gpt-4o-mini"; }
-  if (p === "anthropic") { document.getElementById("aiBase").value = "https://api.anthropic.com/v1"; document.getElementById("aiModel").value = "claude-haiku-4-5"; }
-  if (p === "qwen") { document.getElementById("aiBase").value = "https://dashscope.aliyuncs.com/compatible-mode/v1"; document.getElementById("aiModel").value = "qwen-turbo"; }
-  if (p === "ollama") { document.getElementById("aiBase").value = "http://localhost:11434/v1"; document.getElementById("aiModel").value = "llama3"; }
+  var modelEl = document.getElementById("aiModel");
+  var presets = {
+    deepseek:    { base: "https://api.deepseek.com/v1", models: ["deepseek-chat","deepseek-reasoner"] },
+    openai:      { base: "https://api.openai.com/v1", models: ["gpt-4o-mini","gpt-4o","gpt-4-turbo"] },
+    anthropic:   { base: "https://api.anthropic.com/v1", models: ["claude-haiku-4-5","claude-sonnet-4-6","claude-opus-4-7"] },
+    qwen:        { base: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-turbo","qwen-plus","qwen-max"] },
+    ollama:      { base: "http://localhost:11434/v1", models: ["llama3","qwen2.5","deepseek-r1"] },
+    custom:      { models: [] }
+  };
+  var cfg = presets[p] || {};
+  if (cfg.base) document.getElementById("aiBase").value = cfg.base;
+  var models = cfg.models || [];
+  if (models.length > 0) {
+    modelEl.innerHTML = models.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join("");
+  }
 }
 function toggleKeyVisibility() {
   var el = document.getElementById("aiKey");
