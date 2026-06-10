@@ -639,7 +639,7 @@ function saveAllSettings() {
     provider: document.getElementById("aiProvider").value,
     model: document.getElementById("aiModel").value.trim(),
     base: document.getElementById("aiBase").value.trim(),
-    key: document.getElementById("aiKey").value.trim(),
+    key: document.getElementById("aiKey").getAttribute("data-full") || document.getElementById("aiKey").value.trim(),
     temperature: parseFloat(document.getElementById("aiTemp").value) || 0.3,
     maxTokens: parseInt(document.getElementById("aiMaxTokens").value) || 2000,
     enableAIAnalysis: document.getElementById("aiEnable").checked
@@ -698,7 +698,8 @@ function toggleKeyVisibility() {
 }
 function testApiConnection() {
   var base = document.getElementById("aiBase").value.trim();
-  var key = document.getElementById("aiKey").value.trim();
+  var el = document.getElementById("aiKey");
+  var key = el.getAttribute("data-full") || el.value.trim();
   var model = document.getElementById("aiModel").value.trim();
   var s = document.getElementById("testStatus");
   if (!key) { s.textContent = "请先填写 Key"; s.style.color = "var(--red)"; return; }
