@@ -261,7 +261,7 @@ function switchTab(name) {
   });
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  if (name === 'watch') { loadWatchlist(); checkWatchlist(); }
+  if (name === 'watch') checkWatchlist();
 }
 
 // ==================== 全场扫描 ====================
