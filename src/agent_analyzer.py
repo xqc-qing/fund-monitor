@@ -31,6 +31,7 @@ except Exception:
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_API_BASE = os.environ.get("LLM_API_BASE", "https://api.openai.com/v1")
 LLM_MODEL = os.environ.get("LLM_MODEL", "")
+LLM_LAST_ERROR = ""  # 最近一次 LLM 调用失败的具体原因
 
 from .fetcher_watch import fetch_history
 from .fund_indicators import compute_indicators
@@ -78,6 +79,7 @@ class AnalysisRequest:
 
 def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Dict] = None, trade_settings: Optional[Dict] = None) -> Optional[Dict]:
     """用 LLM 做完整分析，返回结构化 JSON。失败返回 None。"""
+    global LLM_LAST_ERROR
     # 优先用请求参数中的配置，否则用环境变量
     cfg = llm_config or {}
     key = cfg.get("key") or LLM_API_KEY
@@ -159,7 +161,16 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Di
             },
             timeout=30,
         )
+        if resp.status_code == 401 or resp.status_code == 403:
+            LLM_LAST_ERROR = "API Key 错误"
+            logger.warning("LLM API 认证失败: %s", resp.status_code)
+            return None
+        if resp.status_code == 404:
+            LLM_LAST_ERROR = "baseUrl 错误或模型不存在"
+            logger.warning("LLM API 404: %s", resp.status_code)
+            return None
         if resp.status_code != 200:
+            LLM_LAST_ERROR = f"接口请求失败 (HTTP {resp.status_code})"
             logger.warning("LLM API 返回 %s: %s", resp.status_code, resp.text[:100])
             return None
 
@@ -171,10 +182,20 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Di
                 content = content[:-3]
         result = json.loads(content)
         if isinstance(result, dict) and "summary" in result:
+            LLM_LAST_ERROR = ""
             return result
+        LLM_LAST_ERROR = "AI 返回格式异常，未包含 summary"
+    except requests.ConnectionError:
+        LLM_LAST_ERROR = "接口请求失败：无法连接"
+        logger.warning("LLM 连接失败: %s", base)
+    except requests.Timeout:
+        LLM_LAST_ERROR = "接口请求超时"
+        logger.warning("LLM 请求超时: %s", base)
     except json.JSONDecodeError:
+        LLM_LAST_ERROR = "AI 返回非 JSON 格式"
         logger.warning("LLM 返回非 JSON，回退规则引擎。内容: %s", content[:200])
     except Exception:
+        LLM_LAST_ERROR = "接口请求失败"
         logger.exception("LLM 调用失败，回退规则引擎")
     return None
 
@@ -209,21 +230,29 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
         settings=trade_settings,
     )
 
-    # 4. 收集启用的规则名称
+    # 4. 收集启用的规则（中文可读格式，含实际阈值）
     from .agent_rules import DEFAULT_TRADE_SETTINGS
     trade = {**DEFAULT_TRADE_SETTINGS, **(trade_settings or {})}
+    tp = trade.get("targetTakeProfitPercent", 15)
+    review = trade.get("reviewLossPercent", -8)
+    stop_add = trade.get("stopAddingLossPercent", -12)
+    logic_fail = trade.get("logicFailureLossPercent", -15)
+    min_days = trade.get("minHoldingDaysForCFund", 7)
+    lookback = trade.get("lowPointLookbackDays", 30)
+    near_low = trade.get("nearLowPointThresholdPercent", 3)
+
     rules_used = []
     if trade.get("enableTakeProfitReminder", True):
-        rules_used.append("targetTakeProfitPercent")
+        rules_used.append(f"{tp}%止盈")
     if trade.get("enableRiskReminder", True):
-        rules_used.extend(["reviewLossPercent", "stopAddingLossPercent", "logicFailureLossPercent",
-                           "lowPointLookbackDays", "nearLowPointThresholdPercent"])
+        rules_used.extend([f"{review}%复盘", f"{stop_add}%停止加仓", f"{logic_fail}%逻辑失效"])
     if trade.get("enableRedemptionFeeReminder", True):
-        rules_used.append("minHoldingDaysForCFund")
+        rules_used.append(f"C类基金持有{min_days}天")
 
     # 5. 决定分析来源
     analysis_source = "rules"
-    analysis_mode = ""
+    source_label = "交易纪律规则"
+    basis = "仅根据交易纪律规则判断"
     fallback_reason = ""
     llm_used = False
     llm_result = None
@@ -231,26 +260,33 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
     if llm_enabled:
         if not key:
             analysis_source = "rules"
-            analysis_mode = "仅规则引擎：未配置 API Key"
-            fallback_reason = "未配置 API Key"
+            source_label = "交易纪律规则"
+            basis = "仅根据交易纪律规则判断"
+            fallback_reason = "API Key 未配置"
         elif not (cfg.get("model") or LLM_MODEL):
             analysis_source = "rules"
-            analysis_mode = "仅规则引擎：未配置模型名"
-            fallback_reason = "未配置模型名"
+            source_label = "交易纪律规则"
+            basis = "仅根据交易纪律规则判断"
+            fallback_reason = "模型名缺失"
         else:
             llm_result = _llm_analyze(req, indicators, llm_config, trade_settings)
             if llm_result:
                 analysis_source = "ai"
-                analysis_mode = "AI + 交易纪律规则"
+                source_label = "AI 分析"
+                basis = "AI 分析 + 交易纪律规则"
                 llm_used = True
             else:
                 analysis_source = "fallback"
-                analysis_mode = "规则引擎兜底：AI 请求失败"
-                fallback_reason = "AI 请求失败，已使用交易纪律规则判断"
+                source_label = "规则兜底"
+                basis = "AI 调用失败，已改用交易纪律规则判断"
+                fallback_reason = LLM_LAST_ERROR or "AI 请求失败，已使用交易纪律规则判断"
     else:
         analysis_source = "rules"
-        analysis_mode = "仅规则引擎：AI 分析未启用"
-        fallback_reason = "AI 分析未启用"
+        source_label = "交易纪律规则"
+        basis = "仅根据交易纪律规则判断"
+        fallback_reason = "AI 未启用"
+
+    analysis_mode = basis  # 兼容旧字段
 
     # 6. 合并结果
     if llm_result:
@@ -276,7 +312,9 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
 
     # 注入分析来源元数据
     result["analysis_source"] = analysis_source
+    result["source_label"] = source_label
     result["analysis_mode"] = analysis_mode
+    result["basis"] = basis
     result["provider"] = provider
     result["model_used"] = model_used
     result["llm_used"] = llm_used

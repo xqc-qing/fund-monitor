@@ -342,12 +342,13 @@
         <button class="btn btn-outline btn-sm" onclick="runAgent()">重新分析</button>
       </div>
 
-      <div id="agentSource" style="padding:10px 14px; background:rgba(79,140,255,0.06); border:1px solid rgba(79,140,255,0.15); border-radius:8px; margin-bottom:12px; font-size:11px; line-height:1.8; display:none;">
-        <div id="agentSourceLine" style="font-weight:500;"></div>
-        <div id="agentModeLine" style="color:var(--muted);"></div>
+      <div id="agentSourceBox" style="display:none; padding:10px 14px; background:rgba(79,140,255,0.06); border:1px solid rgba(79,140,255,0.15); border-radius:8px; margin-bottom:12px; font-size:11px; line-height:2;">
+        <div id="agentSourceLine" style="font-weight:600;"></div>
+        <div id="agentModelLine" style="color:var(--muted);"></div>
+        <div id="agentBasisLine" style="color:var(--muted);"></div>
         <div id="agentRulesLine" style="color:var(--muted);"></div>
-        <div id="agentReasonLine" style="color:var(--orange);"></div>
-        <div id="agentUpdateTime" style="color:var(--muted);font-size:10px;margin-top:2px;"></div>
+        <div id="agentReasonLine" style="color:var(--red);"></div>
+        <div id="agentUpdateTime" style="color:var(--muted);font-size:10px;margin-top:2px;border-top:1px solid var(--border);padding-top:4px;"></div>
       </div>
       <div id="agentSummary" style="padding:12px 16px; background:#11131a; border-radius:8px; margin-bottom:16px; font-size:13px; line-height:1.6;"></div>
 
@@ -748,47 +749,28 @@ function runAgent() {
     if (!d.ok) { document.getElementById('agentSummary').textContent = d.error; return; }
 
     // --- 分析来源标识 ---
-    var srcBox = document.getElementById('agentSource');
+    var srcBox = document.getElementById('agentSourceBox');
     srcBox.style.display = 'block';
 
-    // 1. 来源行
+    var sl = d.source_label || '交易纪律规则';
+    var modelName = d.model_used || '无';
+
+    // 颜色
     var sourceColor;
-    if (d.analysis_source === 'ai') {
-      var provLabel = d.provider || 'AI';
-      sourceColor = 'var(--accent)';
-      document.getElementById('agentSourceLine').innerHTML = '<span style="color:'+sourceColor+'">分析来源：'+esc(provLabel)+' · '+esc(d.model_used||'')+'</span>';
-    } else if (d.analysis_source === 'fallback') {
-      sourceColor = 'var(--orange)';
-      document.getElementById('agentSourceLine').innerHTML = '<span style="color:'+sourceColor+'">分析来源：AI 调用失败，规则引擎兜底</span>';
-    } else {
-      sourceColor = 'var(--muted)';
-      document.getElementById('agentSourceLine').innerHTML = '<span style="color:'+sourceColor+'">分析来源：规则引擎</span>';
-    }
+    if (d.analysis_source === 'ai') sourceColor = 'var(--accent)';
+    else if (d.analysis_source === 'fallback') sourceColor = 'var(--orange)';
+    else sourceColor = 'var(--muted)';
 
-    // 2. 分析模式
-    document.getElementById('agentModeLine').textContent = '分析模式：' + (d.analysis_mode || '未知');
+    // 逐行展示
+    document.getElementById('agentSourceLine').innerHTML = '分析来源：<span style="color:'+sourceColor+'">' + esc(sl) + '</span>';
+    document.getElementById('agentModelLine').textContent = '使用模型：' + (d.analysis_source === 'rules' ? '无' : (esc(d.provider||'') + ' / ' + esc(modelName)));
+    document.getElementById('agentBasisLine').textContent = '判断基础：' + (d.basis || d.analysis_mode || '');
+    document.getElementById('agentRulesLine').textContent = '使用规则：' + ((d.rules_used||[]).length > 0 ? d.rules_used.join('、') : '无');
 
-    // 3. 判断依据 — 将 rules_used 映射为中文
-    var ruleNameMap = {
-      targetTakeProfitPercent: '止盈线',
-      reviewLossPercent: '复盘线',
-      stopAddingLossPercent: '停止加仓线',
-      logicFailureLossPercent: '逻辑失效线',
-      minHoldingDaysForCFund: 'C类持有天数规则',
-      lowPointLookbackDays: '低点判断周期',
-      nearLowPointThresholdPercent: '低点阈值规则'
-    };
-    var rules = d.rules_used || [];
-    if (rules.length > 0) {
-      var rulesText = rules.map(function(k){ return ruleNameMap[k] || k; }).join('、');
-      document.getElementById('agentRulesLine').textContent = '判断依据：' + rulesText;
-    } else {
-      document.getElementById('agentRulesLine').textContent = '';
-    }
-
-    // 4. 失败原因（仅当有 fallback 时显示）
+    // 失败原因
     if (d.fallback_reason) {
-      document.getElementById('agentReasonLine').textContent = '原因：' + d.fallback_reason;
+      var reasonLabel = d.analysis_source === 'fallback' ? '失败原因' : '原因';
+      document.getElementById('agentReasonLine').textContent = reasonLabel + '：' + d.fallback_reason;
       document.getElementById('agentReasonLine').style.display = 'block';
     } else {
       document.getElementById('agentReasonLine').style.display = 'none';
