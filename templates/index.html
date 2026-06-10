@@ -162,13 +162,13 @@
             <option value="custom">自定义</option>
           </select>
         </div>
-        <div class="form-group"><label>模型 <span style="font-weight:400;color:var(--muted);font-size:10px">(可选择或手动输入)</span></label>
-          <input id="aiModel" list="aiModelList" style="width:200px" placeholder="输入模型名或选择" autocomplete="off">
-          <datalist id="aiModelList">
-            <option value="deepseek-chat">
-            <option value="deepseek-reasoner (R1)">
-          </datalist>
-        </div>
+        <div class="form-group"><label>模型 <span style="font-weight:400;color:var(--muted);font-size:10px">(直接输入任意模型名)</span></label>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <input id="aiModel" type="text" style="width:160px" placeholder="输入模型名，如 deepseek-v4-pro">
+            <select id="aiModelQuick" onchange="if(this.value){document.getElementById('aiModel').value=this.value;this.value=''}" style="width:36px;font-size:12px;padding:4px 2px;cursor:pointer;" title="常用模型快捷填入">
+              <option value="">...</option>
+            </select>
+          </div>
         <div class="form-group"><label>温度</label><input id="aiTemp" style="width:80px" placeholder="0.3"></div>
         <div class="form-group"><label>最大Token</label><input id="aiMaxTokens" style="width:80px" placeholder="2000"></div>
       </div>
@@ -691,9 +691,9 @@ function resetTradeDefaults() {
 }
 function onProviderChange() {
   var p = document.getElementById("aiProvider").value;
-  var datalist = document.getElementById("aiModelList");
+  var quick = document.getElementById("aiModelQuick");
   var presets = {
-    deepseek:    { base: "https://api.deepseek.com/v1", models: ["deepseek-chat","deepseek-reasoner"] },
+    deepseek:    { base: "https://api.deepseek.com/v1", models: ["deepseek-chat","deepseek-reasoner","deepseek-v4-pro","deepseek-v4-flash"] },
     openai:      { base: "https://api.openai.com/v1", models: ["gpt-4o-mini","gpt-4o","gpt-4-turbo","gpt-4.1"] },
     anthropic:   { base: "https://api.anthropic.com/v1", models: ["claude-haiku-4-5","claude-sonnet-4-6","claude-opus-4-7"] },
     qwen:        { base: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-turbo","qwen-plus","qwen-max"] },
@@ -703,7 +703,7 @@ function onProviderChange() {
   var cfg = presets[p] || {};
   if (cfg.base) document.getElementById("aiBase").value = cfg.base;
   var models = cfg.models || [];
-  datalist.innerHTML = models.map(function(m){ return '<option value="'+m+'">'; }).join("");
+  quick.innerHTML = '<option value="">...</option>' + models.map(function(m){ return '<option value="'+m+'">'+m.substring(0,12)+'</option>'; }).join("");
 }
 function toggleKeyVisibility() {
   var el = document.getElementById("aiKey");
