@@ -76,7 +76,7 @@ class AnalysisRequest:
     buy_date: Optional[str] = None
 
 
-def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Dict] = None) -> Optional[Dict]:
+def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Dict] = None, trade_settings: Optional[Dict] = None) -> Optional[Dict]:
     """用 LLM 做完整分析，返回结构化 JSON。失败返回 None。"""
     # 优先用请求参数中的配置，否则用环境变量
     key = (llm_config or {}).get("key") or LLM_API_KEY
@@ -101,7 +101,21 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Di
         except Exception:
             pass
 
-    prompt = f"""你是基金分析助手，请根据以下数据对这只基金做分析。
+    # 交易纪律（优先用传入的，否则默认值）
+    from .agent_rules import DEFAULT_TRADE_SETTINGS
+    trade = {**DEFAULT_TRADE_SETTINGS, **(trade_settings or {})}
+    trade_desc = f"""- 止盈目标: {trade['targetTakeProfitPercent']}%
+- 复盘线: {trade['reviewLossPercent']}%
+- 停止加仓线: {trade['stopAddingLossPercent']}%
+- 逻辑失效线: {trade['logicFailureLossPercent']}%
+- C类最短持有: {trade['minHoldingDaysForCFund']}天
+- 买入方式: {trade['buyStyle']}
+- 基金类型: {trade['fundType']}"""
+
+    prompt = f"""你是基金分析助手，请根据以下数据对这只基金做分析。分析时必须严格按交易纪律判断。
+
+## 交易纪律
+{trade_desc}
 
 ## 基金数据
 - 代码: {req.code}
@@ -186,7 +200,7 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
     )
 
     # 4. 尝试 LLM 分析
-    llm_result = _llm_analyze(req, indicators, llm_config)
+    llm_result = _llm_analyze(req, indicators, llm_config, trade_settings)
 
     # 5. 合并结果
     if llm_result:

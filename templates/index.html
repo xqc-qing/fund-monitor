@@ -156,6 +156,9 @@
           <select id="aiProvider" onchange="onProviderChange()" style="width:160px">
             <option value="deepseek">DeepSeek</option>
             <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="qwen">通义千问</option>
+            <option value="ollama">Ollama</option>
             <option value="custom">自定义</option>
           </select>
         </div>
@@ -608,7 +611,11 @@ function loadAllSettings() {
   document.getElementById("aiProvider").value = ai.provider || "deepseek";
   document.getElementById("aiModel").value = ai.model || "";
   document.getElementById("aiBase").value = ai.base || "";
-  document.getElementById("aiKey").value = ai.key || "";
+  var k = ai.key || "";
+  var masked = k;
+  if (k.length > 11) { masked = k.substring(0,3) + "****" + k.substring(k.length-4); }
+  document.getElementById("aiKey").value = masked;
+  document.getElementById("aiKey").setAttribute("data-full", k);
   document.getElementById("aiTemp").value = ai.temperature || "0.3";
   document.getElementById("aiMaxTokens").value = ai.maxTokens || "2000";
   document.getElementById("aiEnable").checked = ai.enableAIAnalysis !== false;
@@ -654,7 +661,7 @@ function saveAllSettings() {
   };
   localStorage.setItem("tradeSettings", JSON.stringify(tr));
   var s = document.getElementById("settingsSaved");
-  s.style.display = "block";
+  s.style.display = "block"; if (agentCode) runAgent();
   setTimeout(function(){ s.style.display = "none"; }, 2000);
 }
 function resetTradeDefaults() {
@@ -671,8 +678,24 @@ function onProviderChange() {
   var p = document.getElementById("aiProvider").value;
   if (p === "deepseek") { document.getElementById("aiBase").value = "https://api.deepseek.com/v1"; document.getElementById("aiModel").value = "deepseek-chat"; }
   if (p === "openai") { document.getElementById("aiBase").value = "https://api.openai.com/v1"; document.getElementById("aiModel").value = "gpt-4o-mini"; }
+  if (p === "anthropic") { document.getElementById("aiBase").value = "https://api.anthropic.com/v1"; document.getElementById("aiModel").value = "claude-haiku-4-5"; }
+  if (p === "qwen") { document.getElementById("aiBase").value = "https://dashscope.aliyuncs.com/compatible-mode/v1"; document.getElementById("aiModel").value = "qwen-turbo"; }
+  if (p === "ollama") { document.getElementById("aiBase").value = "http://localhost:11434/v1"; document.getElementById("aiModel").value = "llama3"; }
 }
-function toggleKeyVisibility() { var el = document.getElementById("aiKey"); el.type = el.type === "password" ? "text" : "password"; }
+function toggleKeyVisibility() {
+  var el = document.getElementById("aiKey");
+  if (el.type === "password") {
+    el.type = "text";
+    el.value = el.getAttribute("data-full") || el.value;
+    event.target.textContent = "隐藏";
+  } else {
+    el.type = "password";
+    var full = el.value;
+    el.setAttribute("data-full", full);
+    if (full.length > 11) { el.value = full.substring(0,3) + "****" + full.substring(full.length-4); }
+    event.target.textContent = "显示";
+  }
+}
 function testApiConnection() {
   var base = document.getElementById("aiBase").value.trim();
   var key = document.getElementById("aiKey").value.trim();
