@@ -693,7 +693,7 @@ function onProviderChange() {
   var p = document.getElementById("aiProvider").value;
   var quick = document.getElementById("aiModelQuick");
   var presets = {
-    deepseek:    { base: "https://api.deepseek.com/v1", models: ["deepseek-chat","deepseek-reasoner","deepseek-v4-pro","deepseek-v4-flash"] },
+    deepseek:    { base: "https://api.deepseek.com", models: ["deepseek-v4-flash","deepseek-v4-pro"] },
     openai:      { base: "https://api.openai.com/v1", models: ["gpt-4o-mini","gpt-4o","gpt-4-turbo","gpt-4.1"] },
     anthropic:   { base: "https://api.anthropic.com/v1", models: ["claude-haiku-4-5","claude-sonnet-4-6","claude-opus-4-7"] },
     qwen:        { base: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-turbo","qwen-plus","qwen-max"] },
