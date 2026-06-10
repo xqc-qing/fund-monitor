@@ -79,9 +79,12 @@ class AnalysisRequest:
 def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Dict] = None, trade_settings: Optional[Dict] = None) -> Optional[Dict]:
     """用 LLM 做完整分析，返回结构化 JSON。失败返回 None。"""
     # 优先用请求参数中的配置，否则用环境变量
-    key = (llm_config or {}).get("key") or LLM_API_KEY
-    base = (llm_config or {}).get("base") or LLM_API_BASE
-    model = (llm_config or {}).get("model") or LLM_MODEL
+    cfg = llm_config or {}
+    key = cfg.get("key") or LLM_API_KEY
+    base = cfg.get("base") or LLM_API_BASE
+    model = cfg.get("model") or LLM_MODEL
+    temperature = float(cfg.get("temperature", 0.3))
+    max_tokens = int(cfg.get("maxTokens", 800))
     if not key:
         return None
 
@@ -151,8 +154,8 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Di
                     {"role": "system", "content": "你是基金分析助手。只输出 JSON，不要 markdown 代码块，不要额外解释。"},
                     {"role": "user", "content": prompt},
                 ],
-                "max_tokens": 800,
-                "temperature": 0.3,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
             },
             timeout=30,
         )
@@ -179,9 +182,9 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Di
 def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_settings: Optional[Dict] = None) -> Dict:
     """执行分析：优先 LLM → 失败则规则引擎。可传入 trade_settings 覆盖默认交易纪律。"""
 
-    # 1. 获取历史数据 + 计算技术指标
+    # 1. 获取历史数据 + 计算技术指标（传入交易设置以使用用户配置的阈值）
     hist = fetch_history(req.code, req.fund_type) if req.fund_type else None
-    indicators = compute_indicators(hist) if hist is not None else {}
+    indicators = compute_indicators(hist, settings=trade_settings) if hist is not None else {}
     if req.current_price > 0 and not indicators.get("current_nav"):
         indicators["current_nav"] = req.current_price
 
@@ -199,15 +202,19 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
         settings=trade_settings,
     )
 
-    # 4. 尝试 LLM 分析
-    llm_result = _llm_analyze(req, indicators, llm_config, trade_settings)
+    # 4. 尝试 LLM 分析（检查用户是否启用 AI）
+    llm_enabled = (llm_config or {}).get("enableAIAnalysis", True)
+    llm_result = _llm_analyze(req, indicators, llm_config, trade_settings) if llm_enabled else None
+
+    # LLM 实际使用的模型名
+    llm_model_used = (llm_config or {}).get("model") or LLM_MODEL
 
     # 5. 合并结果
     if llm_result:
         result = {
             "fund_code": req.code,
             "fund_name": req.name,
-            "model": f"llm ({LLM_MODEL})",
+            "model": f"llm ({llm_model_used})",
             "summary": llm_result.get("summary", rule_result["summary"]),
             "current_status": llm_result.get("current_status", rule_result["current_status"]),
             "buy_signal": llm_result.get("buy_signal", rule_result["buy_signal"]),

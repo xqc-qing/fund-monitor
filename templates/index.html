@@ -642,6 +642,7 @@ function loadAllSettings() {
   document.getElementById("tradeEnableRisk").checked = tr.enableRiskReminder !== false;
   document.getElementById("tradeEnableFee").checked = tr.enableRedemptionFeeReminder !== false;
 }
+function _intVal(id, def) { var el = document.getElementById(id); if (!el) return def; var v = parseInt(el.value); return isNaN(v) ? def : v; }
 function saveAllSettings() {
   var ai = {
     provider: document.getElementById("aiProvider").value,
@@ -649,18 +650,18 @@ function saveAllSettings() {
     base: document.getElementById("aiBase").value.trim(),
     key: document.getElementById("aiKey").getAttribute("data-full") || document.getElementById("aiKey").value.trim(),
     temperature: parseFloat(document.getElementById("aiTemp").value) || 0.3,
-    maxTokens: parseInt(document.getElementById("aiMaxTokens").value) || 2000,
+    maxTokens: _intVal("aiMaxTokens", 2000),
     enableAIAnalysis: document.getElementById("aiEnable").checked
   };
   localStorage.setItem("llmConfig", JSON.stringify(ai));
   var tr = {
-    targetTakeProfitPercent: parseInt(document.getElementById("tradeTP").value) || 15,
-    reviewLossPercent: parseInt(document.getElementById("tradeReview").value) || -8,
-    stopAddingLossPercent: parseInt(document.getElementById("tradeStopAdd").value) || -12,
-    logicFailureLossPercent: parseInt(document.getElementById("tradeFail").value) || -15,
-    minHoldingDaysForCFund: parseInt(document.getElementById("tradeMinDays").value) || 7,
-    lowPointLookbackDays: parseInt(document.getElementById("tradeLookback").value) || 30,
-    nearLowPointThresholdPercent: parseInt(document.getElementById("tradeNearLow").value) || 3,
+    targetTakeProfitPercent: _intVal("tradeTP", 15),
+    reviewLossPercent: _intVal("tradeReview", -8),
+    stopAddingLossPercent: _intVal("tradeStopAdd", -12),
+    logicFailureLossPercent: _intVal("tradeFail", -15),
+    minHoldingDaysForCFund: _intVal("tradeMinDays", 7),
+    lowPointLookbackDays: _intVal("tradeLookback", 30),
+    nearLowPointThresholdPercent: _intVal("tradeNearLow", 3),
     buyStyle: document.getElementById("tradeBuyStyle").value,
     fundType: document.getElementById("tradeFundType").value,
     enableTakeProfitReminder: document.getElementById("tradeEnableTP").checked,

@@ -4,6 +4,8 @@ __pycache__/
 data/
 *.db
 *.log
-*.txt
+.env
 .vs/
 .idea/
+.venv/
+venv/
