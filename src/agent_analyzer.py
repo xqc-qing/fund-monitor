@@ -30,7 +30,7 @@ except Exception:
 
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_API_BASE = os.environ.get("LLM_API_BASE", "https://api.openai.com/v1")
-LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+LLM_MODEL = os.environ.get("LLM_MODEL", "")
 
 from .fetcher_watch import fetch_history
 from .fund_indicators import compute_indicators
@@ -182,6 +182,13 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Di
 def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_settings: Optional[Dict] = None) -> Dict:
     """执行分析：优先 LLM → 失败则规则引擎。可传入 trade_settings 覆盖默认交易纪律。"""
 
+    cfg = llm_config or {}
+    provider = cfg.get("provider", "")
+    user_model = cfg.get("model")
+    model_used = user_model if user_model else LLM_MODEL
+    llm_enabled = cfg.get("enableAIAnalysis", True) if "enableAIAnalysis" in cfg else True
+    key = cfg.get("key") or LLM_API_KEY
+
     # 1. 获取历史数据 + 计算技术指标（传入交易设置以使用用户配置的阈值）
     hist = fetch_history(req.code, req.fund_type) if req.fund_type else None
     indicators = compute_indicators(hist, settings=trade_settings) if hist is not None else {}
@@ -202,19 +209,54 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
         settings=trade_settings,
     )
 
-    # 4. 尝试 LLM 分析（检查用户是否启用 AI）
-    llm_enabled = (llm_config or {}).get("enableAIAnalysis", True)
-    llm_result = _llm_analyze(req, indicators, llm_config, trade_settings) if llm_enabled else None
+    # 4. 收集启用的规则名称
+    from .agent_rules import DEFAULT_TRADE_SETTINGS
+    trade = {**DEFAULT_TRADE_SETTINGS, **(trade_settings or {})}
+    rules_used = []
+    if trade.get("enableTakeProfitReminder", True):
+        rules_used.append("targetTakeProfitPercent")
+    if trade.get("enableRiskReminder", True):
+        rules_used.extend(["reviewLossPercent", "stopAddingLossPercent", "logicFailureLossPercent",
+                           "lowPointLookbackDays", "nearLowPointThresholdPercent"])
+    if trade.get("enableRedemptionFeeReminder", True):
+        rules_used.append("minHoldingDaysForCFund")
 
-    # LLM 实际使用的模型名
-    llm_model_used = (llm_config or {}).get("model") or LLM_MODEL
+    # 5. 决定分析来源
+    analysis_source = "rules"
+    analysis_mode = ""
+    fallback_reason = ""
+    llm_used = False
+    llm_result = None
 
-    # 5. 合并结果
+    if llm_enabled:
+        if not key:
+            analysis_source = "rules"
+            analysis_mode = "仅规则引擎：未配置 API Key"
+            fallback_reason = "未配置 API Key"
+        elif not (cfg.get("model") or LLM_MODEL):
+            analysis_source = "rules"
+            analysis_mode = "仅规则引擎：未配置模型名"
+            fallback_reason = "未配置模型名"
+        else:
+            llm_result = _llm_analyze(req, indicators, llm_config, trade_settings)
+            if llm_result:
+                analysis_source = "ai"
+                analysis_mode = "AI + 交易纪律规则"
+                llm_used = True
+            else:
+                analysis_source = "fallback"
+                analysis_mode = "规则引擎兜底：AI 请求失败"
+                fallback_reason = "AI 请求失败，已使用交易纪律规则判断"
+    else:
+        analysis_source = "rules"
+        analysis_mode = "仅规则引擎：AI 分析未启用"
+        fallback_reason = "AI 分析未启用"
+
+    # 6. 合并结果
     if llm_result:
         result = {
             "fund_code": req.code,
             "fund_name": req.name,
-            "model": f"llm ({llm_model_used})",
             "summary": llm_result.get("summary", rule_result["summary"]),
             "current_status": llm_result.get("current_status", rule_result["current_status"]),
             "buy_signal": llm_result.get("buy_signal", rule_result["buy_signal"]),
@@ -229,8 +271,17 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
             **rule_result,
             "fund_code": req.code,
             "fund_name": req.name,
-            "model": "rule_engine (未配置 LLM 或调用失败)",
             "disclaimer": "仅做分析参考，不构成投资建议。Agent 不会直接给出买卖指令。",
         }
+
+    # 注入分析来源元数据
+    result["analysis_source"] = analysis_source
+    result["analysis_mode"] = analysis_mode
+    result["provider"] = provider
+    result["model_used"] = model_used
+    result["llm_used"] = llm_used
+    result["fallback_reason"] = fallback_reason
+    result["rules_used"] = rules_used
+    result["ok"] = True
 
     return result

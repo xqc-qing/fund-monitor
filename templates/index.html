@@ -162,11 +162,12 @@
             <option value="custom">自定义</option>
           </select>
         </div>
-        <div class="form-group"><label>模型</label>
-          <select id="aiModel" style="width:200px">
-            <option value="deepseek-chat">deepseek-chat</option>
-            <option value="deepseek-reasoner">deepseek-reasoner (R1)</option>
-          </select>
+        <div class="form-group"><label>模型 <span style="font-weight:400;color:var(--muted);font-size:10px">(可选择或手动输入)</span></label>
+          <input id="aiModel" list="aiModelList" style="width:200px" placeholder="输入模型名或选择" autocomplete="off">
+          <datalist id="aiModelList">
+            <option value="deepseek-chat">
+            <option value="deepseek-reasoner (R1)">
+          </datalist>
         </div>
         <div class="form-group"><label>温度</label><input id="aiTemp" style="width:80px" placeholder="0.3"></div>
         <div class="form-group"><label>最大Token</label><input id="aiMaxTokens" style="width:80px" placeholder="2000"></div>
@@ -341,6 +342,13 @@
         <button class="btn btn-outline btn-sm" onclick="runAgent()">重新分析</button>
       </div>
 
+      <div id="agentSource" style="padding:10px 14px; background:rgba(79,140,255,0.06); border:1px solid rgba(79,140,255,0.15); border-radius:8px; margin-bottom:12px; font-size:11px; line-height:1.8; display:none;">
+        <div id="agentSourceLine" style="font-weight:500;"></div>
+        <div id="agentModeLine" style="color:var(--muted);"></div>
+        <div id="agentRulesLine" style="color:var(--muted);"></div>
+        <div id="agentReasonLine" style="color:var(--orange);"></div>
+        <div id="agentUpdateTime" style="color:var(--muted);font-size:10px;margin-top:2px;"></div>
+      </div>
       <div id="agentSummary" style="padding:12px 16px; background:#11131a; border-radius:8px; margin-bottom:16px; font-size:13px; line-height:1.6;"></div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
@@ -613,12 +621,9 @@ function switchSettingsTab(tab) {
 function loadAllSettings() {
   var ai = {}; try { ai = JSON.parse(localStorage.getItem("llmConfig") || "{}"); } catch(e) {}
   document.getElementById("aiProvider").value = ai.provider || "deepseek";
-  var m = ai.model || "deepseek-chat";
-  var modelEl = document.getElementById("aiModel");
-  var found = false;
-  for (var i=0; i<modelEl.options.length; i++) { if (modelEl.options[i].value === m) { modelEl.value = m; found = true; break; } }
-  if (!found && m) { modelEl.innerHTML += '<option value="'+m+'">'+m+' (custom)</option>'; modelEl.value = m; }
-  document.getElementById("aiBase").value = ai.base || "https://api.deepseek.com/v1";
+  onProviderChange();  // 填充 datalist + 自动填 baseUrl
+  document.getElementById("aiModel").value = ai.model || "";
+  if (ai.base) document.getElementById("aiBase").value = ai.base;
   var k = ai.key || "";
   var masked = k;
   if (k.length > 11) { masked = k.substring(0,3) + "****" + k.substring(k.length-4); }
@@ -685,10 +690,10 @@ function resetTradeDefaults() {
 }
 function onProviderChange() {
   var p = document.getElementById("aiProvider").value;
-  var modelEl = document.getElementById("aiModel");
+  var datalist = document.getElementById("aiModelList");
   var presets = {
     deepseek:    { base: "https://api.deepseek.com/v1", models: ["deepseek-chat","deepseek-reasoner"] },
-    openai:      { base: "https://api.openai.com/v1", models: ["gpt-4o-mini","gpt-4o","gpt-4-turbo"] },
+    openai:      { base: "https://api.openai.com/v1", models: ["gpt-4o-mini","gpt-4o","gpt-4-turbo","gpt-4.1"] },
     anthropic:   { base: "https://api.anthropic.com/v1", models: ["claude-haiku-4-5","claude-sonnet-4-6","claude-opus-4-7"] },
     qwen:        { base: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-turbo","qwen-plus","qwen-max"] },
     ollama:      { base: "http://localhost:11434/v1", models: ["llama3","qwen2.5","deepseek-r1"] },
@@ -697,9 +702,7 @@ function onProviderChange() {
   var cfg = presets[p] || {};
   if (cfg.base) document.getElementById("aiBase").value = cfg.base;
   var models = cfg.models || [];
-  if (models.length > 0) {
-    modelEl.innerHTML = models.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join("");
-  }
+  datalist.innerHTML = models.map(function(m){ return '<option value="'+m+'">'; }).join("");
 }
 function toggleKeyVisibility() {
   var el = document.getElementById("aiKey");
@@ -743,6 +746,56 @@ function runAgent() {
     body:JSON.stringify(body)
   }).then(function(r){ return r.json(); }).then(function(d){
     if (!d.ok) { document.getElementById('agentSummary').textContent = d.error; return; }
+
+    // --- 分析来源标识 ---
+    var srcBox = document.getElementById('agentSource');
+    srcBox.style.display = 'block';
+
+    // 1. 来源行
+    var sourceColor;
+    if (d.analysis_source === 'ai') {
+      var provLabel = d.provider || 'AI';
+      sourceColor = 'var(--accent)';
+      document.getElementById('agentSourceLine').innerHTML = '<span style="color:'+sourceColor+'">分析来源：'+esc(provLabel)+' · '+esc(d.model_used||'')+'</span>';
+    } else if (d.analysis_source === 'fallback') {
+      sourceColor = 'var(--orange)';
+      document.getElementById('agentSourceLine').innerHTML = '<span style="color:'+sourceColor+'">分析来源：AI 调用失败，规则引擎兜底</span>';
+    } else {
+      sourceColor = 'var(--muted)';
+      document.getElementById('agentSourceLine').innerHTML = '<span style="color:'+sourceColor+'">分析来源：规则引擎</span>';
+    }
+
+    // 2. 分析模式
+    document.getElementById('agentModeLine').textContent = '分析模式：' + (d.analysis_mode || '未知');
+
+    // 3. 判断依据 — 将 rules_used 映射为中文
+    var ruleNameMap = {
+      targetTakeProfitPercent: '止盈线',
+      reviewLossPercent: '复盘线',
+      stopAddingLossPercent: '停止加仓线',
+      logicFailureLossPercent: '逻辑失效线',
+      minHoldingDaysForCFund: 'C类持有天数规则',
+      lowPointLookbackDays: '低点判断周期',
+      nearLowPointThresholdPercent: '低点阈值规则'
+    };
+    var rules = d.rules_used || [];
+    if (rules.length > 0) {
+      var rulesText = rules.map(function(k){ return ruleNameMap[k] || k; }).join('、');
+      document.getElementById('agentRulesLine').textContent = '判断依据：' + rulesText;
+    } else {
+      document.getElementById('agentRulesLine').textContent = '';
+    }
+
+    // 4. 失败原因（仅当有 fallback 时显示）
+    if (d.fallback_reason) {
+      document.getElementById('agentReasonLine').textContent = '原因：' + d.fallback_reason;
+      document.getElementById('agentReasonLine').style.display = 'block';
+    } else {
+      document.getElementById('agentReasonLine').style.display = 'none';
+    }
+
+    var now = new Date();
+    document.getElementById('agentUpdateTime').textContent = '更新时间：' + now.toLocaleString();
 
     document.getElementById('agentSummary').innerHTML = '<strong>' + esc(d.fund_name) + ' (' + d.fund_code + ')</strong><br>' + esc(d.summary || '');
 
