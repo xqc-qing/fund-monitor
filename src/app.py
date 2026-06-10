@@ -359,6 +359,7 @@ def api_agent_analyze():
         current_price = 0
 
     llm_config = data.get("llm_config")
+    trade_settings = data.get("trade_settings")
 
     req = AnalysisRequest(
         code=code,
@@ -369,9 +370,44 @@ def api_agent_analyze():
         buy_date=str(buy_date)[:10] if buy_date else None,
     )
 
-    result = analyze(req, llm_config)
+    result = analyze(req, llm_config, trade_settings)
     result["ok"] = True
     return result
+
+
+# ============================================================
+# 路由 — API 测试
+# ============================================================
+
+
+@app.route("/api/agent/test-api", methods=["POST"])
+def api_test_llm():
+    """测试 LLM API 连接是否可用。"""
+    data = request.get_json()
+    base = data.get("base", "").strip().rstrip("/")
+    key = data.get("key", "").strip()
+    model = data.get("model", "").strip()
+    if not base or not key:
+        return {"ok": False, "error": "缺少 base 或 key"}
+
+    try:
+        resp = requests.post(
+            f"{base}/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"model": model or "gpt-4o-mini", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            return {"ok": True}
+        # 尝试解析错误信息
+        try:
+            err = resp.json()
+            msg = err.get("error", {}).get("message", "") or str(err)
+        except Exception:
+            msg = resp.text[:100]
+        return {"ok": False, "error": f"HTTP {resp.status_code}: {msg}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:100]}
 
 
 # ============================================================

@@ -162,8 +162,8 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Di
     return None
 
 
-def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None) -> Dict:
-    """执行分析：优先 LLM → 失败则规则引擎。"""
+def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_settings: Optional[Dict] = None) -> Dict:
+    """执行分析：优先 LLM → 失败则规则引擎。可传入 trade_settings 覆盖默认交易纪律。"""
 
     # 1. 获取历史数据 + 计算技术指标
     hist = fetch_history(req.code, req.fund_type) if req.fund_type else None
@@ -171,17 +171,18 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None) -> Dict:
     if req.current_price > 0 and not indicators.get("current_nav"):
         indicators["current_nav"] = req.current_price
 
-    # 2. 计算持仓收益率（供 LLM 和规则引擎共用）
+    # 2. 计算持仓收益率
     current_return = None
     if req.cost_nav and req.cost_nav > 0 and req.current_price > 0:
         current_return = round((req.current_price - req.cost_nav) / req.cost_nav * 100, 2)
 
-    # 3. 规则引擎兜底结果
+    # 3. 规则引擎兜底结果（传入用户交易设置）
     rule_result = evaluate_rules(
         current_nav=req.current_price or indicators.get("current_nav", 0),
         cost_nav=req.cost_nav,
         buy_date=req.buy_date,
         indicators=indicators,
+        settings=trade_settings,
     )
 
     # 4. 尝试 LLM 分析

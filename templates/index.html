@@ -140,32 +140,72 @@
   </div>
 
   
-  <!-- API -->
-  <div id="settingsPanel" style="display:none; background:var(--card); border:1px solid var(--accent); border-radius:10px; padding:16px 20px; margin-bottom:20px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <span style="font-size:14px; font-weight:600;">API 设置</span>
-      <span style="font-size:11px; color:var(--muted)">不填则使用纯规则引擎分析</span>
+    <!-- 设置面板 -->
+  <div id="settingsPanel" style="display:none; background:var(--card); border:1px solid var(--accent); border-radius:12px; padding:20px; margin-bottom:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <span style="font-size:15px; font-weight:600;">设置</span>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('settingsPanel').style.display='none'">关闭</button>
     </div>
-    <div class="form-row" style="margin-bottom:0">
-      <div class="form-group">
-        <label>API Key</label>
-        <input id="apiKey" class="wide" style="width:240px" placeholder="sk-...">
-      </div>
-      <div class="form-group">
-        <label>API Base URL</label>
-        <input id="apiBase" class="wide" style="width:260px" placeholder="https://api.deepseek.com/v1">
-      </div>
-      <div class="form-group">
-        <label>Model</label>
-        <input id="apiModel" style="width:150px" placeholder="deepseek-chat">
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="saveApiSettings()" style="height:36px">保存</button>
-      <button class="btn btn-outline btn-sm" onclick="document.getElementById('settingsPanel').style.display='none'" style="height:36px">关闭</button>
+    <div style="display:flex; gap:8px; border-bottom:1px solid var(--border); margin-bottom:16px;">
+      <span onclick="switchSettingsTab('ai')" id="stab-ai" style="cursor:pointer;padding:6px 14px;font-size:13px;color:var(--accent);border-bottom:2px solid var(--accent);">AI API</span>
+      <span onclick="switchSettingsTab('trade')" id="stab-trade" style="cursor:pointer;padding:6px 14px;font-size:13px;color:var(--muted);">交易纪律</span>
     </div>
-    <div id="apiStatus" style="font-size:11px; color:var(--green); margin-top:8px; display:none;">已保存</div>
+    <div id="stab-content-ai">
+      <div class="form-row" style="margin-bottom:12px">
+        <div class="form-group"><label>Provider</label>
+          <select id="aiProvider" onchange="onProviderChange()" style="width:160px">
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Model</label><input id="aiModel" style="width:160px" placeholder="deepseek-chat"></div>
+        <div class="form-group"><label>Temperature</label><input id="aiTemp" style="width:80px" placeholder="0.3"></div>
+        <div class="form-group"><label>Max Tokens</label><input id="aiMaxTokens" style="width:80px" placeholder="2000"></div>
+      </div>
+      <div class="form-row" style="margin-bottom:12px">
+        <div class="form-group"><label>API Base URL</label><input id="aiBase" class="wide" style="width:400px" placeholder="https://api.deepseek.com/v1"></div>
+      </div>
+      <div class="form-row" style="margin-bottom:12px">
+        <div class="form-group"><label>API Key</label><input id="aiKey" class="wide" style="width:400px" type="password" placeholder="sk-..."></div>
+        <button class="btn btn-outline btn-sm" onclick="toggleKeyVisibility()" style="height:36px;margin-top:18px">Show</button>
+      </div>
+      <div class="form-row" style="margin-bottom:12px;align-items:center;">
+        <label style="margin-right:12px;font-size:13px;"><input type="checkbox" id="aiEnable" checked style="margin-right:4px"> Enable AI</label>
+        <button class="btn btn-outline btn-sm" onclick="testApiConnection()">Test API</button>
+        <span id="testStatus" style="font-size:11px;margin-left:8px;"></span>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="saveAllSettings()">Save AI Config</button>
+    </div>
+    <div id="stab-content-trade" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="form-group"><label>Target Profit (%)</label><input id="tradeTP" style="width:100px" value="15"></div>
+        <div class="form-group"><label>Review Loss (%)</label><input id="tradeReview" style="width:100px" value="-8"></div>
+        <div class="form-group"><label>Stop Buying Loss (%)</label><input id="tradeStopAdd" style="width:100px" value="-12"></div>
+        <div class="form-group"><label>Logic Fail Loss (%)</label><input id="tradeFail" style="width:100px" value="-15"></div>
+        <div class="form-group"><label>C Fund Min Days</label><input id="tradeMinDays" style="width:100px" value="7"></div>
+        <div class="form-group"><label>Low Point Lookback (d)</label><input id="tradeLookback" style="width:100px" value="30"></div>
+        <div class="form-group"><label>Near Low Threshold (%)</label><input id="tradeNearLow" style="width:100px" value="3"></div>
+        <div class="form-group"><label>Buy Style</label>
+          <select id="tradeBuyStyle" style="width:140px"><option value="一次性买入">One-time</option><option value="分批买入">Batch</option></select>
+        </div>
+        <div class="form-group"><label>Fund Type</label>
+          <select id="tradeFundType" style="width:140px"><option value="C类基金">C Fund</option><option value="A类基金">A Fund</option><option value="ETF">ETF</option></select>
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="margin-right:16px;font-size:13px;"><input type="checkbox" id="tradeEnableTP" checked> Profit Alert</label>
+        <label style="margin-right:16px;font-size:13px;"><input type="checkbox" id="tradeEnableRisk" checked> Risk Alert</label>
+        <label style="font-size:13px;"><input type="checkbox" id="tradeEnableFee" checked> Fee Alert</label>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveAllSettings()">Save Trade Rules</button>
+        <button class="btn btn-outline btn-sm" onclick="resetTradeDefaults()">Restore Defaults</button>
+      </div>
+    </div>
+    <div id="settingsSaved" style="font-size:11px;color:var(--green);margin-top:12px;display:none;">Saved</div>
   </div>
-
-  <!-- ==================== 全场扫描 ==================== -->
+<!-- ==================== 全场扫描 ==================== -->
   <div class="tab-content active" id="tab-scan">
     <div class="header">
       <h2>全场基金低点扫描</h2>
@@ -543,30 +583,108 @@ function checkWatchlist() {
 // ==================== Agent 分析 ====================
 var agentCode = '';
 
-// ==================== API 设置 ====================
+// ==================== Settings ====================
+var DEFAULT_TRADE = {
+  targetTakeProfitPercent: 15, reviewLossPercent: -8, stopAddingLossPercent: -12,
+  logicFailureLossPercent: -15, minHoldingDaysForCFund: 7, lowPointLookbackDays: 30,
+  nearLowPointThresholdPercent: 3, buyStyle: "一次性买入", fundType: "C类基金",
+  enableTakeProfitReminder: true, enableRiskReminder: true, enableRedemptionFeeReminder: true
+};
 function toggleSettings() {
-  var p = document.getElementById('settingsPanel');
-  p.style.display = p.style.display === 'none' ? 'block' : 'none';
-  if (p.style.display === 'block') loadApiSettings();
+  var p = document.getElementById("settingsPanel");
+  p.style.display = p.style.display === "none" ? "block" : "none";
+  if (p.style.display === "block") { loadAllSettings(); switchSettingsTab("ai"); }
 }
-function loadApiSettings() {
-  var cfg = {};
-  try { cfg = JSON.parse(localStorage.getItem('llmConfig') || '{}'); } catch(e) {}
-  document.getElementById('apiKey').value = cfg.key || '';
-  document.getElementById('apiBase').value = cfg.base || '';
-  document.getElementById('apiModel').value = cfg.model || '';
+function switchSettingsTab(tab) {
+  var ak = "cursor:pointer;padding:6px 14px;font-size:13px;color:var(--accent);border-bottom:2px solid var(--accent)";
+  var mk = "cursor:pointer;padding:6px 14px;font-size:13px;color:var(--muted)";
+  document.getElementById("stab-ai").style.cssText = tab==="ai" ? ak : mk;
+  document.getElementById("stab-trade").style.cssText = tab==="trade" ? ak : mk;
+  document.getElementById("stab-content-ai").style.display = tab==="ai" ? "block" : "none";
+  document.getElementById("stab-content-trade").style.display = tab==="trade" ? "block" : "none";
 }
-function saveApiSettings() {
-  var cfg = {
-    key: document.getElementById('apiKey').value.trim(),
-    base: document.getElementById('apiBase').value.trim(),
-    model: document.getElementById('apiModel').value.trim()
+function loadAllSettings() {
+  var ai = {}; try { ai = JSON.parse(localStorage.getItem("llmConfig") || "{}"); } catch(e) {}
+  document.getElementById("aiProvider").value = ai.provider || "deepseek";
+  document.getElementById("aiModel").value = ai.model || "";
+  document.getElementById("aiBase").value = ai.base || "";
+  document.getElementById("aiKey").value = ai.key || "";
+  document.getElementById("aiTemp").value = ai.temperature || "0.3";
+  document.getElementById("aiMaxTokens").value = ai.maxTokens || "2000";
+  document.getElementById("aiEnable").checked = ai.enableAIAnalysis !== false;
+  var tr = {}; try { tr = JSON.parse(localStorage.getItem("tradeSettings") || "{}"); } catch(e) {}
+  tr = Object.assign({}, DEFAULT_TRADE, tr);
+  document.getElementById("tradeTP").value = tr.targetTakeProfitPercent;
+  document.getElementById("tradeReview").value = tr.reviewLossPercent;
+  document.getElementById("tradeStopAdd").value = tr.stopAddingLossPercent;
+  document.getElementById("tradeFail").value = tr.logicFailureLossPercent;
+  document.getElementById("tradeMinDays").value = tr.minHoldingDaysForCFund;
+  document.getElementById("tradeLookback").value = tr.lowPointLookbackDays;
+  document.getElementById("tradeNearLow").value = tr.nearLowPointThresholdPercent;
+  document.getElementById("tradeBuyStyle").value = tr.buyStyle || "一次性买入";
+  document.getElementById("tradeFundType").value = tr.fundType || "C类基金";
+  document.getElementById("tradeEnableTP").checked = tr.enableTakeProfitReminder !== false;
+  document.getElementById("tradeEnableRisk").checked = tr.enableRiskReminder !== false;
+  document.getElementById("tradeEnableFee").checked = tr.enableRedemptionFeeReminder !== false;
+}
+function saveAllSettings() {
+  var ai = {
+    provider: document.getElementById("aiProvider").value,
+    model: document.getElementById("aiModel").value.trim(),
+    base: document.getElementById("aiBase").value.trim(),
+    key: document.getElementById("aiKey").value.trim(),
+    temperature: parseFloat(document.getElementById("aiTemp").value) || 0.3,
+    maxTokens: parseInt(document.getElementById("aiMaxTokens").value) || 2000,
+    enableAIAnalysis: document.getElementById("aiEnable").checked
   };
-  localStorage.setItem('llmConfig', JSON.stringify(cfg));
-  var s = document.getElementById('apiStatus');
-  s.style.display = 'block';
-  setTimeout(function(){ s.style.display = 'none'; }, 2000);
+  localStorage.setItem("llmConfig", JSON.stringify(ai));
+  var tr = {
+    targetTakeProfitPercent: parseInt(document.getElementById("tradeTP").value) || 15,
+    reviewLossPercent: parseInt(document.getElementById("tradeReview").value) || -8,
+    stopAddingLossPercent: parseInt(document.getElementById("tradeStopAdd").value) || -12,
+    logicFailureLossPercent: parseInt(document.getElementById("tradeFail").value) || -15,
+    minHoldingDaysForCFund: parseInt(document.getElementById("tradeMinDays").value) || 7,
+    lowPointLookbackDays: parseInt(document.getElementById("tradeLookback").value) || 30,
+    nearLowPointThresholdPercent: parseInt(document.getElementById("tradeNearLow").value) || 3,
+    buyStyle: document.getElementById("tradeBuyStyle").value,
+    fundType: document.getElementById("tradeFundType").value,
+    enableTakeProfitReminder: document.getElementById("tradeEnableTP").checked,
+    enableRiskReminder: document.getElementById("tradeEnableRisk").checked,
+    enableRedemptionFeeReminder: document.getElementById("tradeEnableFee").checked
+  };
+  localStorage.setItem("tradeSettings", JSON.stringify(tr));
+  var s = document.getElementById("settingsSaved");
+  s.style.display = "block";
+  setTimeout(function(){ s.style.display = "none"; }, 2000);
 }
+function resetTradeDefaults() {
+  var map = {"targetTakeProfitPercent":"tradeTP","reviewLossPercent":"tradeReview","stopAddingLossPercent":"tradeStopAdd","logicFailureLossPercent":"tradeFail","minHoldingDaysForCFund":"tradeMinDays","lowPointLookbackDays":"tradeLookback","nearLowPointThresholdPercent":"tradeNearLow"};
+  Object.keys(map).forEach(function(k){ var el = document.getElementById(map[k]); if (el) el.value = DEFAULT_TRADE[k]; });
+  document.getElementById("tradeBuyStyle").value = "一次性买入";
+  document.getElementById("tradeFundType").value = "C类基金";
+  document.getElementById("tradeEnableTP").checked = true;
+  document.getElementById("tradeEnableRisk").checked = true;
+  document.getElementById("tradeEnableFee").checked = true;
+  saveAllSettings();
+}
+function onProviderChange() {
+  var p = document.getElementById("aiProvider").value;
+  if (p === "deepseek") { document.getElementById("aiBase").value = "https://api.deepseek.com/v1"; document.getElementById("aiModel").value = "deepseek-chat"; }
+  if (p === "openai") { document.getElementById("aiBase").value = "https://api.openai.com/v1"; document.getElementById("aiModel").value = "gpt-4o-mini"; }
+}
+function toggleKeyVisibility() { var el = document.getElementById("aiKey"); el.type = el.type === "password" ? "text" : "password"; }
+function testApiConnection() {
+  var base = document.getElementById("aiBase").value.trim();
+  var key = document.getElementById("aiKey").value.trim();
+  var model = document.getElementById("aiModel").value.trim();
+  var s = document.getElementById("testStatus");
+  if (!key) { s.textContent = "Enter Key first"; s.style.color = "var(--red)"; return; }
+  s.textContent = "Testing..."; s.style.color = "var(--muted)";
+  fetch("/api/agent/test-api", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({base:base,key:key,model:model})})
+  .then(function(r){return r.json()}).then(function(d){s.textContent=d.ok?"Connected":"Failed: "+(d.error||"");s.style.color=d.ok?"var(--green)":"var(--red)"})
+  .catch(function(e){s.textContent="Error: "+e.message;s.style.color="var(--red)"});
+}
+
 function runAgentFor(code) { agentCode = code; runAgent(); }
 function runAgent() {
   if (!agentCode) { alert('请先选一只基金'); return; }
@@ -574,7 +692,7 @@ function runAgent() {
   document.getElementById('agentSummary').textContent = '分析中...';
 
   var llmCfg = {}; try { llmCfg = JSON.parse(localStorage.getItem('llmConfig') || '{}'); } catch(e) {}
-  var body = {code: agentCode};
+  var body = {code: agentCode}; var tr = {}; try { tr = JSON.parse(localStorage.getItem("tradeSettings") || "{}"); } catch(e) {} body.trade_settings = tr;
   if (llmCfg.key) body.llm_config = llmCfg;
     fetch('/api/agent/analyze', {
     method:'POST',
