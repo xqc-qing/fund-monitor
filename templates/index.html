@@ -417,27 +417,29 @@ function checkWatchlist() {
     if (!data.results || data.results.length === 0) { loadWatchlist(); return; }
 
     let triggeredCount = 0;
-    document.getElementById('watchTable').innerHTML = data.results.map(r => {
-      let label = r.fund_type === 'etf' ? '价格' : '净值';
-      let priceStr = r.error ? '获取失败' : r.current_price.toFixed(4);
-      let changeStr = '-';
+    document.getElementById('watchTable').innerHTML = data.results.map(function(r, i) {
+      var priceStr = r.error ? '获取失败' : Number(r.current_price).toFixed(4);
+      var changeStr = '-';
       if (r.prev_price && r.current_price) {
-        let chg = ((r.current_price - r.prev_price) / r.prev_price * 100);
+        var chg = (Number(r.current_price) - Number(r.prev_price)) / Number(r.prev_price) * 100;
         changeStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
       }
-      let triggered = r.triggered;
+      var triggered = r.triggered;
       if (triggered) triggeredCount++;
-      let statusHtml = triggered
-        ? '<span class="alert-badge alert-on">! ' + r.reasons[0].substring(0,20) + '</span>'
+      var reasonText = (triggered && r.reasons && r.reasons.length > 0) ? r.reasons[0] : '';
+      var statusHtml = triggered
+        ? '<span class="alert-badge alert-on">! ' + reasonText.substring(0, 20) + '</span>'
         : '<span class="alert-badge alert-off">未触发</span>';
-      let rowCls = triggered ? 'alert-row' : '';
-      let typeTag = r.fund_type === 'etf' ? '<span class="tag tag-etf">ETF</span>' : '<span class="tag tag-open">场外</span>';
-      return `<tr class="${rowCls}" id="row-${r.code}">
-        <td style="font-family:monospace"><a class="fund-link" href="${cUrl}" onclick="openFund('${r.code}');return false" title="在浏览器中查看详情" style="cursor:pointer">${r.code}</a></td><td>${esc(r.name)}</td><td>${typeTag}</td>
-        <td style="font-family:monospace">${priceStr}</td><td style="font-family:monospace">${changeStr}</td>
-        <td>${r.alert_below || '-'}</td><td>${statusHtml}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="removeFund('${r.code}')">删除</button></td>
-      </tr>`;
+      var rowCls = triggered ? 'alert-row' : '';
+      var typeTag = r.fund_type === 'etf' ? '<span class="tag tag-etf">ETF</span>' : '<span class="tag tag-open">场外</span>';
+      var fundUrl = 'https://fund.eastmoney.com/' + r.code + '.html';
+      return '<tr class="' + rowCls + '" id="row-' + r.code + '">' +
+        '<td style="font-family:monospace"><a class="fund-link" href="' + fundUrl + '" onclick="openFund(\'' + r.code + '\');return false" title="查看详情" style="cursor:pointer">' + r.code + '</a></td>' +
+        '<td>' + esc(r.name) + '</td><td>' + typeTag + '</td>' +
+        '<td style="font-family:monospace">' + priceStr + '</td>' +
+        '<td style="font-family:monospace">' + changeStr + '</td>' +
+        '<td>' + (r.alert_below || '-') + '</td><td>' + statusHtml + '</td>' +
+        '<td><button class="btn btn-danger btn-sm" onclick="removeFund(\'' + r.code + '\')">删除</button></td></tr>';
     }).join('');
     document.getElementById('watchCount').textContent = data.results.length;
     document.getElementById('watchTriggered').textContent = triggeredCount;
