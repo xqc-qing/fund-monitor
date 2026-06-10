@@ -89,6 +89,9 @@ def _llm_analyze(req: AnalysisRequest, indicators: Dict, llm_config: Optional[Di
     max_tokens = int(cfg.get("maxTokens", 800))
     if not key:
         return None
+    if not model:
+        LLM_LAST_ERROR = "模型名为空"
+        return None
 
     # 计算当前收益率
     current_return = "无持仓成本"
@@ -271,7 +274,7 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
             analysis_source = "rules"
             source_label = "交易纪律规则"
             basis = "仅根据交易纪律规则判断"
-            fallback_reason = "模型名缺失"
+            fallback_reason = "模型名为空"
         else:
             llm_result = _llm_analyze(req, indicators, llm_config, trade_settings)
             if llm_result:

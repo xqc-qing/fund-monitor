@@ -177,7 +177,7 @@
       </div>
       <div class="form-row" style="margin-bottom:12px">
         <div class="form-group"><label>API Key <span style="font-weight:400;color:var(--muted);font-size:10px">(在服务商网站申请，如 platform.deepseek.com)</span></label><input id="aiKey" class="wide" style="width:400px" type="password" placeholder="sk-..."></div>
-        <button class="btn btn-outline btn-sm" onclick="toggleKeyVisibility()" style="height:36px;margin-top:18px">显示</button>
+        <button class="btn btn-outline btn-sm" onclick="toggleKeyVisibility(event)" style="height:36px;margin-top:18px">显示</button>
       </div>
       <div class="form-row" style="margin-bottom:12px;align-items:center;">
         <label style="margin-right:12px;font-size:13px;"><input type="checkbox" id="aiEnable" checked style="margin-right:4px"> 启用 AI</label>
@@ -705,18 +705,18 @@ function onProviderChange() {
   var models = cfg.models || [];
   quick.innerHTML = '<option value="">...</option>' + models.map(function(m){ return '<option value="'+m+'">'+m.substring(0,12)+'</option>'; }).join("");
 }
-function toggleKeyVisibility() {
+function toggleKeyVisibility(ev) {
   var el = document.getElementById("aiKey");
   if (el.type === "password") {
     el.type = "text";
     el.value = el.getAttribute("data-full") || el.value;
-    event.target.textContent = "隐藏";
+    ev.target.textContent = "隐藏";
   } else {
     el.type = "password";
     var full = el.value;
     el.setAttribute("data-full", full);
     if (full.length > 11) { el.value = full.substring(0,3) + "****" + full.substring(full.length-4); }
-    event.target.textContent = "显示";
+    ev.target.textContent = "显示";
   }
 }
 function testApiConnection() {
@@ -740,21 +740,24 @@ function runAgent() {
 
   var llmCfg = {}; try { llmCfg = JSON.parse(localStorage.getItem('llmConfig') || '{}'); } catch(e) {}
 
-  // 优先使用设置面板中当前输入的值（用户可能刚改了还没保存）
-  var panel = document.getElementById('settingsPanel');
-  if (panel && panel.style.display !== 'none') {
-    var curModel = document.getElementById('aiModel').value.trim();
-    var curBase = document.getElementById('aiBase').value.trim();
+  // 始终用输入框当前值覆盖 localStorage（只要输入框有值）
+  // 不检查面板是否可见 —— 用户可能刚输入完就关了面板
+  (function(){
+    var curModel = document.getElementById('aiModel');
+    var curBase = document.getElementById('aiBase');
     var curKeyEl = document.getElementById('aiKey');
-    var curKey = curKeyEl.getAttribute('data-full') || curKeyEl.value.trim();
-    if (curModel) llmCfg.model = curModel;
-    if (curBase) llmCfg.base = curBase;
-    if (curKey) llmCfg.key = curKey;
+    if (!curModel) return;
+    var m = curModel.value.trim();
+    var b = curBase.value.trim();
+    var k = curKeyEl.getAttribute('data-full') || curKeyEl.value.trim();
+    if (m) llmCfg.model = m;
+    if (b) llmCfg.base = b;
+    if (k) llmCfg.key = k;
     llmCfg.provider = document.getElementById('aiProvider').value;
     llmCfg.enableAIAnalysis = document.getElementById('aiEnable').checked;
     llmCfg.temperature = parseFloat(document.getElementById('aiTemp').value) || 0.3;
     llmCfg.maxTokens = _intVal('aiMaxTokens', 2000);
-  }
+  })();
   var body = {code: agentCode}; var tr = {}; try { tr = JSON.parse(localStorage.getItem("tradeSettings") || "{}"); } catch(e) {} body.trade_settings = tr;
   body.llm_config = llmCfg;  // 始终发送完整配置，确保 model/provider 等字段不丢失
 
@@ -781,7 +784,6 @@ function runAgent() {
     srcBox.style.display = 'block';
 
     var sl = d.source_label || '交易纪律规则';
-    var modelName = d.model_used || '无';
 
     // 颜色
     var sourceColor;
