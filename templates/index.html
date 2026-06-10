@@ -273,8 +273,6 @@ const logArea = document.getElementById('logArea');
 const resultTable = document.getElementById('resultTable');
 const scanTime = document.getElementById('scanTime');
 
-var scanTimeout;
-
 function startScan() {
   btnScan.disabled = true; btnScan.textContent = '扫描中...';
   progressWrap.classList.add('active'); logArea.classList.add('active');
@@ -282,52 +280,35 @@ function startScan() {
 
   fetch('/api/scan', { method:'POST' }).then(r => r.json()).then(data => {
     if (!data.ok) { alert('扫描已在运行中'); resetScanBtn(); return; }
-    listenProgress(); pollStatus();
-    // 兜底：120秒后无论如何加载结果
-    clearTimeout(scanTimeout);
-    scanTimeout = setTimeout(function() {
-      resetScanBtn();
-      progressWrap.classList.remove('active');
-      loadScanResults();
-      refreshScanStatus();
-    }, 120000);
+    pollStatus();
   });
-}
-
-function listenProgress() {
-  const es = new EventSource('/api/progress');
-  es.onmessage = function(e) {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'done') { es.close(); clearTimeout(scanTimeout); resetScanBtn(); progressWrap.classList.remove('active'); loadScanResults(); }
-    if (msg.type === 'error') { es.close(); resetScanBtn(); progressText.textContent = '扫描出错: ' + msg.text; }
-    if (msg.type === 'log') {
-      const div = document.createElement('div'); div.className = 'line'; div.textContent = msg.text;
-      logArea.appendChild(div); logArea.scrollTop = logArea.scrollHeight;
-    }
-  };
 }
 
 function pollStatus() {
   fetch('/api/status').then(r => r.json()).then(s => {
-    if (s.total > 0) {
-      const pct = Math.round(s.progress / s.total * 100);
-      progressFill.style.width = pct + '%';
-      progressText.textContent = `进度: ${s.progress}/${s.total} (${pct}%)  |  已发现 ${s.found} 只接近低点`;
-      document.getElementById('statTotal').textContent = s.total;
-      document.getElementById('statFound').textContent = s.found;
-    }
+    // 更新统计数字
     document.getElementById('statTime').textContent = s.started_at || '-';
-    if (s.done) {
-      scanTime.textContent = '上次扫描: ' + s.started_at;
-      // SSE 断了也能正常加载结果
-      if (progressWrap.classList.contains('active')) {
-        resetScanBtn();
-        progressWrap.classList.remove('active');
-        clearTimeout(scanTimeout);
-        loadScanResults();
-      }
+    document.getElementById('statFound').textContent = s.found || '0';
+    document.getElementById('statTotal').textContent = s.total || '0';
+    // 更新进度条
+    if (s.total > 0) {
+      let pct = Math.round((s.progress||0) / s.total * 100);
+      progressFill.style.width = pct + '%';
+      progressText.textContent = '进度: ' + (s.progress||0) + '/' + s.total + ' (' + pct + '%)  已发现 ' + (s.found||0) + ' 只';
     }
-    if (s.running) setTimeout(pollStatus, 1000);
+    // 扫描完成 → 加载结果
+    if (s.done && progressWrap.classList.contains('active')) {
+      resetScanBtn();
+      progressWrap.classList.remove('active');
+      scanTime.textContent = '上次扫描: ' + s.started_at;
+      loadScanResults();
+      return;
+    }
+    // 未完成 → 继续轮询
+    if (s.running) setTimeout(function() { pollStatus(); }, 1000);
+  }).catch(function() {
+    // 网络错误也继续重试
+    setTimeout(function() { pollStatus(); }, 2000);
   });
 }
 
