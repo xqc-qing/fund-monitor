@@ -406,13 +406,17 @@ function removeFund(code) {
 }
 
 function checkWatchlist() {
-  const btn = document.getElementById('btnCheck');
+  var btn = document.getElementById('btnCheck');
+  if (!btn) { alert('btnCheck not found'); return; }
   btn.disabled = true; btn.textContent = '检查中...';
 
-  fetch('/api/watchlist/check', { method:'POST' }).then(r => r.json()).then(data => {
+  fetch('/api/watchlist/check', { method:'POST' }).then(function(r) { return r.json(); }).then(function(data) {
+    try {
     btn.disabled = false; btn.textContent = '立即检查';
-    document.getElementById('watchCheckTime').textContent = new Date().toLocaleTimeString();
-    document.getElementById('watchStats').style.display = 'grid';
+    var timeEl = document.getElementById('watchCheckTime');
+    if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
+    var statsEl = document.getElementById('watchStats');
+    if (statsEl) statsEl.style.display = 'grid';
 
     if (!data.results || data.results.length === 0) { loadWatchlist(); return; }
 
@@ -442,12 +446,16 @@ function checkWatchlist() {
         '<td><button class="btn btn-danger btn-sm" onclick="removeFund(\'' + r.code + '\')">删除</button></td></tr>';
     }).join('');
     document.getElementById('watchCount').textContent = data.results.length;
-    document.getElementById('watchTriggered').textContent = triggeredCount;
-    if (triggeredCount > 0) {
-      document.getElementById('watchTriggered').style.color = 'var(--red)';
-    } else {
-      document.getElementById('watchTriggered').style.color = 'var(--green)';
+    var wtEl = document.getElementById('watchTriggered');
+    if (wtEl) {
+      wtEl.textContent = triggeredCount;
+      wtEl.style.color = triggeredCount > 0 ? 'var(--red)' : 'var(--green)';
     }
+    } catch(e) {
+      document.getElementById('watchTable').innerHTML = '<tr><td colspan=\"8\"><div class=\"empty\"><div>渲染错误: ' + e.message + '</div></div></td></tr>';
+    }
+  }).catch(function(e) {
+    document.getElementById('watchTable').innerHTML = '<tr><td colspan=\"8\"><div class=\"empty\"><div>网络错误: ' + e.message + '</div></div></td></tr>';
   });
 }
 
