@@ -739,6 +739,22 @@ function runAgent() {
   document.getElementById('agentSummary').textContent = '分析中...';
 
   var llmCfg = {}; try { llmCfg = JSON.parse(localStorage.getItem('llmConfig') || '{}'); } catch(e) {}
+
+  // 优先使用设置面板中当前输入的值（用户可能刚改了还没保存）
+  var panel = document.getElementById('settingsPanel');
+  if (panel && panel.style.display !== 'none') {
+    var curModel = document.getElementById('aiModel').value.trim();
+    var curBase = document.getElementById('aiBase').value.trim();
+    var curKeyEl = document.getElementById('aiKey');
+    var curKey = curKeyEl.getAttribute('data-full') || curKeyEl.value.trim();
+    if (curModel) llmCfg.model = curModel;
+    if (curBase) llmCfg.base = curBase;
+    if (curKey) llmCfg.key = curKey;
+    llmCfg.provider = document.getElementById('aiProvider').value;
+    llmCfg.enableAIAnalysis = document.getElementById('aiEnable').checked;
+    llmCfg.temperature = parseFloat(document.getElementById('aiTemp').value) || 0.3;
+    llmCfg.maxTokens = _intVal('aiMaxTokens', 2000);
+  }
   var body = {code: agentCode}; var tr = {}; try { tr = JSON.parse(localStorage.getItem("tradeSettings") || "{}"); } catch(e) {} body.trade_settings = tr;
   body.llm_config = llmCfg;  // 始终发送完整配置，确保 model/provider 等字段不丢失
 
