@@ -230,12 +230,22 @@ def api_watchlist_add():
     # 如果用户没填名称，自动查询
     if not name:
         name = _lookup_fund_name(code, ftype)
+    # 如果没指定目标价，自动设为当前价格的1.15倍
+    auto_target = None
+    if not alert_below:
+        try:
+            quote = fetch_quote(code, ftype)
+            if quote and quote.current_price:
+                alert_below = round(quote.current_price * 1.15, 4)
+                auto_target = alert_below
+        except Exception:
+            pass
     wl.append({
         "code": code, "name": name, "type": ftype,
         "alert_below": alert_below, "daily_drop_pct": daily_drop_pct,
     })
     _save_watchlist(wl)
-    return {"ok": True, "funds": wl, "auto_name": name}
+    return {"ok": True, "funds": wl, "auto_name": name, "auto_target": auto_target}
 
 
 @app.route("/api/watchlist/remove", methods=["POST"])
