@@ -48,12 +48,24 @@ def main():
 
     # 等 Flask 就绪
     import urllib.request
-    for _ in range(10):
+    flask_ready = False
+    for _ in range(20):
         try:
-            urllib.request.urlopen("http://127.0.0.1:8080")
+            urllib.request.urlopen("http://127.0.0.1:8080", timeout=2)
+            flask_ready = True
             break
         except Exception:
             time.sleep(0.5)
+
+    # 如果 Flask 没起来，创建报错页面
+    if not flask_ready:
+        html = """<html><body style="background:#1a1d27;color:#e1e4eb;font-family:sans-serif;
+            display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+            <div style="text-align:center"><h2>启动失败</h2><p>Flask 服务未能启动，请检查端口 8080 是否被占用</p></div>
+            </body></html>"""
+        window = webview.create_window(title="基金监测", html=html, width=1200, height=800)
+        webview.start(gui="edgechromium")
+        return
 
     # 纯原生窗口：内嵌 Edge WebView2，无浏览器进程，无地址栏，无任何多余元素
     # 加时间戳参数强制 WebView2 跳过缓存
