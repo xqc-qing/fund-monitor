@@ -25,6 +25,21 @@ def main():
     import webview
     from src.app import app
 
+    # 清除 WebView2 持久化缓存（防止旧页面残留）
+    import shutil, os, tempfile
+    cache_dirs = [
+        Path(os.environ.get("LOCALAPPDATA", "")) / "pywebview" / "EdgeChromium",
+        Path(os.environ.get("TEMP", "")) / "pywebview",
+    ]
+    for d in cache_dirs:
+        try:
+            if d.exists():
+                shutil.rmtree(d, ignore_errors=True)
+        except Exception:
+            pass
+    # 强制 WebView2 使用新的临时用户数据目录
+    os.environ["WEBVIEW2_USER_DATA_FOLDER"] = tempfile.mkdtemp(prefix="fundmon_")
+
     # 后台启动 Flask
     def start_flask():
         app.run(host="127.0.0.1", port=8080, debug=False, use_reloader=False)
