@@ -237,29 +237,42 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
         settings=trade_settings,
     )
 
-    # 4. 收集启用的规则（中文可读格式，含实际阈值）
+    # 4. 确定分析模式：有买入成本 = 持仓模式，否则 = 观察模式
     from .agent_rules import DEFAULT_TRADE_SETTINGS
     trade = {**DEFAULT_TRADE_SETTINGS, **(trade_settings or {})}
-    tp = trade.get("targetTakeProfitPercent", 15)
-    review = trade.get("reviewLossPercent", -8)
-    stop_add = trade.get("stopAddingLossPercent", -12)
-    logic_fail = trade.get("logicFailureLossPercent", -15)
-    min_days = trade.get("minHoldingDaysForCFund", 7)
-    lookback = trade.get("lowPointLookbackDays", 30)
-    near_low = trade.get("nearLowPointThresholdPercent", 3)
+    has_cost = bool(req.cost_nav and req.cost_nav > 0)
+    has_buy_date = bool(req.buy_date)
+    is_holding = has_cost and has_buy_date
 
+    analysis_mode = "holding" if is_holding else "watching"
+    holding_status = "bought" if is_holding else "not_bought"
+
+    # 5. 收集启用的规则（观察模式仅显示买点规则，持仓模式显示全部）
     rules_used = []
-    if trade.get("enableTakeProfitReminder", True):
-        rules_used.append(f"{tp}%止盈")
+    # 买点观察规则（两种模式都适用）
+    lookback = trade.get("lowPointLookbackDays", 30)
+    near_low_pct = trade.get("nearLowPointThresholdPercent", 3)
     if trade.get("enableRiskReminder", True):
-        rules_used.extend([f"{review}%复盘", f"{stop_add}%停止加仓", f"{logic_fail}%逻辑失效"])
-    if trade.get("enableRedemptionFeeReminder", True):
-        rules_used.append(f"C类基金持有{min_days}天")
+        rules_used.append(f"{lookback}日低点判断")
+        rules_used.append(f"{near_low_pct}%低点阈值")
+    # 持仓纪律规则（仅持仓模式）
+    if is_holding:
+        tp = trade.get("targetTakeProfitPercent", 15)
+        review = trade.get("reviewLossPercent", -8)
+        stop_add = trade.get("stopAddingLossPercent", -12)
+        logic_fail = trade.get("logicFailureLossPercent", -15)
+        min_days = trade.get("minHoldingDaysForCFund", 7)
+        if trade.get("enableTakeProfitReminder", True):
+            rules_used.append(f"{tp}%止盈")
+        if trade.get("enableRiskReminder", True):
+            rules_used.extend([f"{review}%复盘", f"{stop_add}%停止加仓", f"{logic_fail}%逻辑失效"])
+        if trade.get("enableRedemptionFeeReminder", True):
+            rules_used.append(f"C类基金持有{min_days}天")
 
-    # 5. 决定分析来源
+    # 6. 决定分析来源
     analysis_source = "rules"
     source_label = "交易纪律规则"
-    basis = "仅根据交易纪律规则判断"
+    basis_text = "仅根据交易纪律规则判断"
     fallback_reason = ""
     llm_used = False
     llm_result = None
@@ -268,32 +281,38 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
         if not key:
             analysis_source = "rules"
             source_label = "交易纪律规则"
-            basis = "仅根据交易纪律规则判断"
+            basis_text = "仅根据交易纪律规则判断"
             fallback_reason = "API Key 未配置"
         elif not (cfg.get("model") or LLM_MODEL):
             analysis_source = "rules"
             source_label = "交易纪律规则"
-            basis = "仅根据交易纪律规则判断"
+            basis_text = "仅根据交易纪律规则判断"
             fallback_reason = "模型名为空"
         else:
             llm_result = _llm_analyze(req, indicators, llm_config, trade_settings)
             if llm_result:
                 analysis_source = "ai"
                 source_label = "AI 分析"
-                basis = "AI 分析 + 交易纪律规则"
+                basis_text = "AI 分析 + 交易纪律规则"
                 llm_used = True
             else:
                 analysis_source = "fallback"
                 source_label = "规则兜底"
-                basis = "AI 调用失败，已改用交易纪律规则判断"
+                basis_text = "AI 调用失败，已改用交易纪律规则判断"
                 fallback_reason = LLM_LAST_ERROR or "AI 请求失败，已使用交易纪律规则判断"
     else:
         analysis_source = "rules"
         source_label = "交易纪律规则"
-        basis = "仅根据交易纪律规则判断"
+        basis_text = "仅根据交易纪律规则判断"
         fallback_reason = "AI 未启用"
 
-    analysis_mode = basis  # 兼容旧字段
+    # 根据模式调整 basis 描述
+    if is_holding:
+        basis_text = basis_text.replace("交易纪律规则", "买入成本、止盈线和风险线")
+    else:
+        basis_text = basis_text.replace("交易纪律规则", "近期走势、阶段低点和低点阈值")
+
+    basis = basis_text  # 兼容旧字段
 
     # 6. 合并结果
     if llm_result:
@@ -320,14 +339,33 @@ def analyze(req: AnalysisRequest, llm_config: Optional[Dict] = None, trade_setti
     # 注入分析来源元数据
     result["analysis_source"] = analysis_source
     result["source_label"] = source_label
-    result["analysis_mode"] = analysis_mode
+    result["analysis_mode"] = analysis_mode          # "watching" | "holding"
+    result["holding_status"] = holding_status        # "not_bought" | "bought"
     result["basis"] = basis
     result["provider"] = provider
-    result["model_requested"] = user_model or ""   # 用户在前端输入的原始模型名
-    result["model_used"] = model_used               # 实际发送给 API 的模型名
+    result["model_requested"] = user_model or ""
+    result["model_used"] = model_used
     result["llm_used"] = llm_used
     result["fallback_reason"] = fallback_reason
     result["rules_used"] = rules_used
-    result["ok"] = True
 
+    # 持仓信号（仅持仓模式有意义）
+    if is_holding:
+        result["holding_signal"] = {
+            "buy_cost": req.cost_nav,
+            "buy_date": str(req.buy_date)[:10] if req.buy_date else None,
+            "current_return": current_return,
+            "take_profit_target": trade.get("targetTakeProfitPercent", 15),
+            "hold_days": (rule_result.get("indicators") or {}).get("hold_days"),
+        }
+    else:
+        result["holding_signal"] = None
+        # 观察模式下清除持仓相关字段
+        result["take_profit_signal"] = None
+        result["risk_signal"] = {"level": "观察模式", "triggered_rules": []}
+        # 观察模式下 action 限定
+        if result.get("suggested_action") and "止盈" in str(result.get("suggested_action", "")):
+            result["suggested_action"] = "继续观察 — 暂无明显信号"
+
+    result["ok"] = True
     return result

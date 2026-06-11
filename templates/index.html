@@ -789,36 +789,34 @@ function runAgent() {
 
     // --- 分析来源标识 ---
     var srcBox = document.getElementById('agentSourceBox');
+    var isWatching = d.analysis_mode === 'watching';
+
     srcBox.style.display = 'block';
 
     var sl = d.source_label || '交易纪律规则';
-
-    // 颜色
     var sourceColor;
     if (d.analysis_source === 'ai') sourceColor = 'var(--accent)';
     else if (d.analysis_source === 'fallback') sourceColor = 'var(--orange)';
     else sourceColor = 'var(--muted)';
 
-    // 逐行展示（model_requested 是前端输入，model_used 是实际发送给 API 的模型）
+    // 分析模式行
+    var modeText = isWatching ? '观察模式（未买入）' : '持仓模式（已买入）';
+    document.getElementById('agentSourceLine').innerHTML =
+      '分析模式：<span style="color:'+(isWatching?'var(--accent)':'var(--green)')+'">' + modeText + '</span>';
+
+    // 分析来源行
     var modelDisplay = (d.analysis_source === 'rules' && !d.llm_used)
       ? '无'
       : (esc(d.provider||'') + ' / ' + esc(d.model_requested || d.model_used || ''));
+    document.getElementById('agentModelLine').innerHTML =
+      '分析来源：<span style="color:'+sourceColor+'">' + esc(sl) + '</span>' +
+      ' &middot; 模型：' + modelDisplay;
 
-    document.getElementById('agentSourceLine').innerHTML = '分析来源：<span style="color:'+sourceColor+'">' + esc(sl) + '</span>';
-    document.getElementById('agentModelLine').textContent = '实际使用模型：' + modelDisplay;
-
-    // 如果 model_requested != model_used，说明发生了 fallback，追加说明
-    if (d.model_requested && d.model_used && d.model_requested !== d.model_used) {
-      document.getElementById('agentModelLine').textContent += ' (请求: ' + d.model_requested + ', 实际: ' + d.model_used + ')';
-    }
-
-    document.getElementById('agentBasisLine').textContent = '判断基础：' + (d.basis || d.analysis_mode || '');
+    document.getElementById('agentBasisLine').textContent = '判断基础：' + (d.basis || '');
     document.getElementById('agentRulesLine').textContent = '使用规则：' + ((d.rules_used||[]).length > 0 ? d.rules_used.join('、') : '无');
 
-    // 失败原因
     if (d.fallback_reason) {
-      var reasonLabel = d.analysis_source === 'fallback' ? '失败原因' : '原因';
-      document.getElementById('agentReasonLine').textContent = reasonLabel + '：' + d.fallback_reason;
+      document.getElementById('agentReasonLine').textContent = '原因：' + d.fallback_reason;
       document.getElementById('agentReasonLine').style.display = 'block';
     } else {
       document.getElementById('agentReasonLine').style.display = 'none';
@@ -827,25 +825,43 @@ function runAgent() {
     var now = new Date();
     document.getElementById('agentUpdateTime').textContent = '更新时间：' + now.toLocaleString();
 
+    // 根据模式更新卡片内容区域
+    if (isWatching) {
+      // 观察模式 — 突出买点信号，隐藏止盈/风险
+      var bSig = d.buy_signal || {};
+      var bl = bSig.level || '无';
+      var bc = bl === '强' ? 'var(--green)' : (bl === '中' ? 'var(--accent)' : (bl === '弱' ? 'var(--orange)' : 'var(--muted)'));
+      document.getElementById('agentStatus').innerHTML = '<span style=\"color:var(--muted)\">观察中</span>';
+      document.getElementById('agentBuySignal').innerHTML =
+        '<span style=\"color:'+bc+';font-size:18px\">' + esc(bl) + '</span>' +
+        '<br><span style=\"font-size:11px;color:var(--muted)\">' + esc(bSig.reason||'暂无买入信号') + '</span>';
+      document.getElementById('agentProfit').innerHTML = '<span style=\"color:var(--muted)\">未买入，无持仓收益</span>';
+      document.getElementById('agentRisk').innerHTML = '<span style=\"color:var(--muted)\">观察模式</span>';
+    } else {
+      // 持仓模式 — 显示完整持仓分析
+      var status = d.current_status || '';
+      var sc = status === '接近止盈' ? 'var(--green)' : (status === '接近买点' ? 'var(--accent)' : 'var(--text)');
+      document.getElementById('agentStatus').innerHTML = '<span style=\"color:'+sc+'\">' + esc(status) + '</span>';
+
+      var bl = (d.buy_signal||{}).level || '无';
+      var bc = bl === '强' ? 'var(--green)' : (bl === '中' ? 'var(--accent)' : 'var(--muted)');
+      document.getElementById('agentBuySignal').innerHTML =
+        '<span style=\"color:'+bc+';font-size:18px\">' + esc(bl) + '</span>' +
+        '<br><span style=\"font-size:11px;color:var(--muted)\">' + esc((d.buy_signal||{}).reason||'') + '</span>';
+
+      var tp = d.take_profit_signal || {};
+      document.getElementById('agentProfit').innerHTML =
+        '当前收益率: <strong>' + esc(tp.current_return||'-') + '</strong>' +
+        '<br>目标: ' + esc(tp.target_return||'15%') +
+        '<br>距离目标: ' + esc(tp.distance_to_target||'-');
+
+      var rs = d.risk_signal || {};
+      var rl = rs.level || '低';
+      var rc = rl === '高' ? 'var(--red)' : (rl === '中' ? 'var(--orange)' : 'var(--green)');
+      document.getElementById('agentRisk').innerHTML = '<span style=\"color:'+rc+'\">' + esc(rl) + '</span>';
+    }
+
     document.getElementById('agentSummary').innerHTML = '<strong>' + esc(d.fund_name) + ' (' + d.fund_code + ')</strong><br>' + esc(d.summary || '');
-
-    var statusEl = document.getElementById('agentStatus');
-    var status = d.current_status || '';
-    var sc = status === '接近止盈' ? 'var(--green)' : (status === '接近买点' ? 'var(--accent)' : 'var(--text)');
-    statusEl.innerHTML = '<span style=\"color:' + sc + '\">' + esc(status) + '</span>';
-
-    var buyEl = document.getElementById('agentBuySignal');
-    var bl = (d.buy_signal||{}).level || '无';
-    var bc = bl === '强' ? 'var(--green)' : (bl === '中' ? 'var(--accent)' : 'var(--muted)');
-    buyEl.innerHTML = '<span style=\"color:' + bc + ';font-size:18px\">' + esc(bl) + '</span><br><span style=\"font-size:11px;color:var(--muted)\">' + esc((d.buy_signal||{}).reason||'') + '</span>';
-
-    var tp = d.take_profit_signal || {};
-    document.getElementById('agentProfit').innerHTML = '当前收益率: <strong>' + esc(tp.current_return||'-') + '</strong><br>目标: ' + esc(tp.target_return||'15%') + '<br>距离目标: ' + esc(tp.distance_to_target||'-');
-
-    var rs = d.risk_signal || {};
-    var rl = rs.level || '低';
-    var rc = rl === '高' ? 'var(--red)' : (rl === '中' ? 'var(--orange)' : 'var(--green)');
-    document.getElementById('agentRisk').innerHTML = '<span style=\"color:' + rc + '\">' + esc(rl) + '</span>';
 
     document.getElementById('agentAction').textContent = d.suggested_action || '-';
 
