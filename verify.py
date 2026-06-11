@@ -177,6 +177,76 @@ def check_config() -> bool:
     return ok
 
 
+def check_frontend() -> bool:
+    """检查前端 HTML/JS 完整性。"""
+    import re
+
+    _print(f"\n{'='*50}")
+    _print(f"  前端检查")
+    _print(f"{'='*50}")
+
+    index_path = PROJECT_ROOT / "templates" / "index.html"
+    if not index_path.exists():
+        _print(f"  {FAIL} templates/index.html 不存在")
+        return False
+
+    html = index_path.read_text(encoding="utf-8")
+
+    # 1. 检查 script 标签
+    script_m = re.search(r"<script>(.*?)</script>", html, re.DOTALL)
+    if not script_m:
+        _print(f"  {FAIL} 未找到 script 标签")
+        return False
+
+    js = script_m.group(1)
+
+    # 2. 用 node.js 检查 JS 语法
+    import subprocess, tempfile, os
+    ok = True
+    node_check = False
+    try:
+        fname = os.path.join(tempfile.gettempdir(), "_verify_page.js")
+        with open(fname, "w", encoding="utf-8") as f:
+            f.write(js)
+        r = subprocess.run(["node", "--check", fname], capture_output=True)
+        if r.returncode == 0:
+            _print(f"  {PASS} JS 语法正确 (Node.js)")
+            node_check = True
+        else:
+            _print(f"  {FAIL} JS 语法错误: {r.stderr.decode('utf-8', errors='replace')[:200]}")
+            ok = False
+    except FileNotFoundError:
+        _print(f"  {INFO} Node.js 未安装，跳过 JS 语法检查")
+    except Exception as e:
+        _print(f"  {WARN} JS 语法检查失败: {e}")
+
+    # 3. 检查 getElementById 引用的元素
+    ids_in_js = set(re.findall(r"getElementById\(['\"](\w+)['\"]\)", js))
+    missing = [eid for eid in ids_in_js if f'id="{eid}"' not in html]
+    if missing:
+        _print(f"  {FAIL} {len(missing)} 个 DOM 元素缺失: {missing}")
+        ok = False
+    else:
+        if "--quick" not in sys.argv:
+            _print(f"  {PASS} {len(ids_in_js)} 个 DOM 元素全部存在")
+
+    # 4. 检查 localStorage 键
+    ls_keys = set(re.findall(r"localStorage\.getItem\(['\"]([^'\"]+)['\"]\)", js))
+    _print(f"  {INFO} localStorage 键: {', '.join(sorted(ls_keys))}")
+
+    # 5. 检查关键功能元素
+    critical = ["settingsPanel", "agentCard", "agentSourceBox", "aiModel",
+                "aiProvider", "aiBase", "aiKey", "aiEnable"]
+    missing_crit = [c for c in critical if f'id="{c}"' not in html]
+    if missing_crit:
+        _print(f"  {FAIL} 关键元素缺失: {missing_crit}")
+        ok = False
+    else:
+        _print(f"  {PASS} {len(critical)} 个关键元素全部存在")
+
+    return ok
+
+
 def main():
     is_quick = "--quick" in sys.argv
     is_sec = "--sec" in sys.argv
@@ -198,6 +268,7 @@ def main():
         results["导入"] = check_imports()
         results["安全"] = check_sensitive()
         results["配置"] = check_config()
+        results["前端"] = check_frontend()
 
     # 汇总
     _print(f"\n{'='*50}")
