@@ -134,6 +134,7 @@
 </head>
 <body>
 <div class="app">
+  <div id="pageError" style="display:none; background:#f44b5b; color:#fff; padding:8px 16px; font-size:13px; text-align:center; position:sticky; top:0; z-index:9999;"></div>
   <div class="tabs">
     <div class="tab active" onclick="switchTab('scan')">全场扫描</div>
     <div class="tab" onclick="switchTab('watch')">我的盯盘</div>
@@ -396,18 +397,24 @@ function switchTab(name) {
 }
 
 // ==================== 全场扫描 ====================
-const btnScan = document.getElementById('btnScan');
-const progressWrap = document.getElementById('progressWrap');
-const progressFill = document.getElementById('progressFill');
-const progressText = document.getElementById('progressText');
-const logArea = document.getElementById('logArea');
-const resultTable = document.getElementById('resultTable');
-const scanTime = document.getElementById('scanTime');
+var btnScan = null, progressWrap = null, progressFill = null, progressText = null;
+var logArea = null, resultTable = null, scanTime = null;
+try {
+  btnScan = document.getElementById('btnScan');
+  progressWrap = document.getElementById('progressWrap');
+  progressFill = document.getElementById('progressFill');
+  progressText = document.getElementById('progressText');
+  logArea = document.getElementById('logArea');
+  resultTable = document.getElementById('resultTable');
+  scanTime = document.getElementById('scanTime');
+} catch(e) { console.error('[Agent] DOM init failed:', e); }
 
 function startScan() {
+  if (!btnScan) return;
   btnScan.disabled = true; btnScan.textContent = '扫描中...';
-  progressWrap.classList.add('active'); logArea.classList.add('active');
-  logArea.innerHTML = ''; resultTable.innerHTML = '';
+  if (progressWrap) progressWrap.classList.add('active');
+  if (logArea) { logArea.classList.add('active'); logArea.innerHTML = ''; }
+  if (resultTable) resultTable.innerHTML = '';
 
   fetch('/api/scan', { method:'POST' }).then(r => r.json()).then(data => {
     if (!data.ok) { alert('扫描已在运行中'); resetScanBtn(); return; }
@@ -544,7 +551,7 @@ function removeFund(code) {
 
 function checkWatchlist() {
   var btn = document.getElementById('btnCheck');
-  if (!btn) { alert('btnCheck not found'); return; }
+  if (!btn) { console.warn('btnCheck not found'); return; }
   btn.disabled = true; btn.textContent = '检查中...';
 
   fetch('/api/watchlist/check', { method:'POST' }).then(function(r) { return r.json(); }).then(function(data) {
@@ -876,30 +883,40 @@ let savedCodes = new Set();
 function loadSavedState() {
   fetch('/api/watchlist').then(r => r.json()).then(data => {
     savedCodes = new Set(data.funds.map(f => f.code));
-  });
+  }).catch(function(e){ console.warn('[Agent] loadSavedState failed:', e); });
 }
 
-// 初始加载 — 清理旧 localStorage 不兼容数据
-(function(){
-  var cfg = localStorage.getItem("llmConfig");
-  if (cfg) {
-    try {
-      var c = JSON.parse(cfg);
-      // 如果旧数据里有 deepseek-chat 且没有 v4 模型字段，清除让用户重新配置
-      if (c.model === "deepseek-chat" || c.model === "deepseek-reasoner") {
-        console.log("[Agent] 检测到旧版模型配置，自动清除:", c.model);
-        localStorage.removeItem("llmConfig");
-      }
-    } catch(e) { localStorage.removeItem("llmConfig"); }
-  }
-  // 记录加载时间，方便确认页面版本
-  console.log("[Agent] 页面加载完成 " + new Date().toLocaleString());
-  console.log("[Agent] llmConfig:", localStorage.getItem("llmConfig") || "(空)");
-})();
+function _showError(msg) {
+  var el = document.getElementById('pageError');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+  console.error('[Agent] PAGE ERROR:', msg);
+}
 
-loadSavedState();
-refreshScanStatus();
-setTimeout(function() { startScan(); }, 1500);
+// 初始加载 — 用 try-catch 保护，任何错误都不让页面空白
+(function(){
+  try {
+    var cfg = localStorage.getItem("llmConfig");
+    if (cfg) {
+      try {
+        var c = JSON.parse(cfg);
+        if (c.model === "deepseek-chat" || c.model === "deepseek-reasoner") {
+          console.log("[Agent] 检测到旧版模型配置，自动清除:", c.model);
+          localStorage.removeItem("llmConfig");
+        }
+      } catch(e) { localStorage.removeItem("llmConfig"); }
+    }
+    console.log("[Agent] 页面加载完成 " + new Date().toLocaleString());
+    console.log("[Agent] llmConfig:", localStorage.getItem("llmConfig") || "(空)");
+  } catch(e) { _showError("初始化失败: " + e.message); }
+
+  try { loadSavedState(); } catch(e) { _showError("loadSavedState: " + e.message); }
+  try { refreshScanStatus(); } catch(e) { _showError("refreshScanStatus: " + e.message); }
+  try {
+    setTimeout(function() {
+      try { startScan(); } catch(e) { _showError("startScan: " + e.message); }
+    }, 1500);
+  } catch(e) { _showError("startScan timer: " + e.message); }
+})();
 </script>
 </body>
 </html>
