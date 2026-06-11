@@ -297,6 +297,19 @@ def api_watchlist_check():
                 quote.name = name
             save_price_snapshot(code, quote.name, ftype, quote.current_price, quote.price_date)
             result = evaluate(quote, alert_below=alert_below, daily_drop_pct=daily_drop_pct)
+
+            # 计算一年低点和止盈价格
+            low_1y = None
+            try:
+                from src.fetcher_watch import fetch_history
+                hist = fetch_history(code, ftype, days=365)
+                if hist is not None and not hist.empty:
+                    nav_col = "单位净值" if ftype != "etf" else "收盘"
+                    if nav_col in hist.columns:
+                        low_1y = round(float(hist[nav_col].min()), 4)
+            except Exception:
+                pass
+
             results.append({
                 "code": code,
                 "name": quote.name,
@@ -306,7 +319,9 @@ def api_watchlist_check():
                 "fund_type": ftype,
                 "triggered": result.triggered,
                 "reasons": result.reasons,
-                "alert_below": alert_below,
+                "low_1y": low_1y,
+                "cost_nav": fund.get("cost_nav"),
+                "buy_date": fund.get("buy_date"),
             })
             if result.triggered:
                 if not already_alerted_today(code):
