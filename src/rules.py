@@ -23,12 +23,12 @@ class AlertResult:
 
 
 def _rule_below_target(quote: FundQuote, alert_below: Optional[float]) -> Optional[str]:
-    """规则1：当前价格/净值 <= 目标价格。"""
+    """规则1：当前价格/净值 <= 一年低点。"""
     if alert_below is None:
         return None
     if quote.current_price <= alert_below:
         pct = (quote.current_price - alert_below) / alert_below * 100
-        return f"低于目标价 {alert_below:.4f}（当前 {quote.current_price:.4f}，差距 {pct:+.2f}%）"
+        return f"低于一年低点 {alert_below:.4f}（当前 {quote.current_price:.4f}，差距 {pct:+.2f}%）"
     return None
 
 

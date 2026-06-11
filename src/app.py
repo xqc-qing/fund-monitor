@@ -234,7 +234,7 @@ def api_watchlist_add():
     # 如果用户没填名称，自动查询
     if not name:
         name = _lookup_fund_name(code, ftype)
-    # 尝试从历史数据获取 1 年低点作为默认目标价
+    # 自动从历史数据获取一年低点
     auto_target = None
     if not alert_below:
         try:

@@ -325,7 +325,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>代码</th><th>名称</th><th>类型</th><th>当前价格</th><th>一年低点</th><th>止盈价格</th><th>触发状态</th><th>操作</th></tr>
+          <tr><th>代码</th><th>名称</th><th>类型</th><th>当前价格</th><th>日涨跌</th><th>一年低点</th><th>止盈价格</th><th>触发状态</th><th>操作</th></tr>
         </thead>
         <tbody id="watchTable">
           <tr><td colspan="8"><div class="empty"><div>点击「立即检查」查看自选基金状态，或在上方添加基金</div></div></td></tr>
@@ -505,6 +505,7 @@ function loadWatchlist() {
         <td style="font-family:monospace;color:var(--muted)">-</td>
         <td style="font-family:monospace;color:var(--muted)">-</td>
         <td style="font-family:monospace;color:var(--muted)">-</td>
+        <td style="font-family:monospace;color:var(--muted)">-</td>
         <td><span class="alert-badge alert-off">待检查</span></td>
         <td><button class="btn btn-danger btn-sm" onclick="removeFund('${f.code}')">删除</button></td>
       </tr>`;
@@ -562,11 +563,18 @@ function checkWatchlist() {
     let triggeredCount = 0;
     document.getElementById('watchTable').innerHTML = data.results.map(function(r, i) {
       var priceStr = r.error ? '获取失败' : Number(r.current_price).toFixed(4);
-      var low1yStr = r.low_1y ? Number(r.low_1y).toFixed(4) : '-';
-      // 止盈价格 = 一年低点 × 止盈比例 (从交易纪律读取，默认15%)
+      // 日涨跌
+      var changeStr = '-';
+      if (r.prev_price && r.current_price) {
+        var chg = (Number(r.current_price) - Number(r.prev_price)) / Number(r.prev_price) * 100;
+        changeStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+      }
+      // 一年低点
+      var low1yStr = r.low_1y ? Number(r.low_1y).toFixed(4) : '数据不足';
+      // 止盈价格 = 一年低点 × (1 + 止盈比例)
       var tpPct = 15;
-      try { var tr = JSON.parse(localStorage.getItem('tradeSettings')||'{}'); if (tr.targetTakeProfitPercent) tpPct = tr.targetTakeProfitPercent; } catch(e) {}
-      var stopProfitStr = r.low_1y ? (Number(r.low_1y) * (1 + tpPct/100)).toFixed(4) : '-';
+      try { var tr_i = JSON.parse(localStorage.getItem('tradeSettings')||'{}'); if (tr_i.targetTakeProfitPercent) tpPct = tr_i.targetTakeProfitPercent; } catch(e) {}
+      var stopProfitStr = r.low_1y ? (Number(r.low_1y) * (1 + tpPct/100)).toFixed(4) : '数据不足';
       var triggered = r.triggered;
       if (triggered) triggeredCount++;
       var reasonText = (triggered && r.reasons && r.reasons.length > 0) ? r.reasons[0] : '';
@@ -580,6 +588,7 @@ function checkWatchlist() {
         '<td style="font-family:monospace"><a class="fund-link" href="' + fundUrl + '" onclick="openFund(\'' + r.code + '\');return false" title="查看详情" style="cursor:pointer">' + r.code + '</a></td>' +
         '<td>' + esc(r.name) + '</td><td>' + typeTag + '</td>' +
         '<td style="font-family:monospace">' + priceStr + '</td>' +
+        '<td style="font-family:monospace">' + (r.error ? '-' : changeStr) + '</td>' +
         '<td style="font-family:monospace">' + low1yStr + '</td>' +
         '<td style="font-family:monospace">' + stopProfitStr + '</td>' +
         '<td>' + statusHtml + '</td>' +
@@ -592,10 +601,10 @@ function checkWatchlist() {
       wtEl.style.color = triggeredCount > 0 ? 'var(--red)' : 'var(--green)';
     }
     } catch(e) {
-      document.getElementById('watchTable').innerHTML = '<tr><td colspan=\"8\"><div class=\"empty\"><div>渲染错误: ' + e.message + '</div></div></td></tr>';
+      document.getElementById('watchTable').innerHTML = '<tr><td colspan="9"><div class=\"empty\"><div>渲染错误: ' + e.message + '</div></div></td></tr>';
     }
   }).catch(function(e) {
-    document.getElementById('watchTable').innerHTML = '<tr><td colspan=\"8\"><div class=\"empty\"><div>网络错误: ' + e.message + '</div></div></td></tr>';
+    document.getElementById('watchTable').innerHTML = '<tr><td colspan="9"><div class=\"empty\"><div>网络错误: ' + e.message + '</div></div></td></tr>';
   });
 }
 
@@ -880,7 +889,7 @@ function quickAdd(code, name, type) {
   fetch('/api/watchlist/add', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({code:code, name:name, type:type, alert_below: null})
+    body:JSON.stringify({code:code, name:name, type:type})
   }).then(r => r.json()).then(data => {
     if (data.ok) {
       savedCodes.add(code);
