@@ -577,9 +577,24 @@ function checkWatchlist() {
       var stopProfitStr = r.low_1y ? (Number(r.low_1y) * (1 + tpPct/100)).toFixed(4) : '数据不足';
       var triggered = r.triggered;
       if (triggered) triggeredCount++;
-      var reasonText = (triggered && r.reasons && r.reasons.length > 0) ? r.reasons[0] : '';
-      var statusHtml = triggered
-        ? '<span class="alert-badge alert-on">! ' + reasonText.substring(0, 20) + '</span>'
+      // 构建两段式触发状态：接近一年低点 + 距止盈价
+      var statusLines = [];
+      if (!r.error && r.low_1y && r.current_price) {
+        var distLow = ((Number(r.current_price) - Number(r.low_1y)) / Number(r.low_1y) * 100);
+        if (distLow <= 0) {
+          statusLines.push('低于一年低点 ' + distLow.toFixed(2) + '%');
+        } else {
+          statusLines.push('距一年低点 +' + distLow.toFixed(2) + '%');
+        }
+        // 距止盈价
+        var tpPct2 = 15;
+        try { var tr2 = JSON.parse(localStorage.getItem('tradeSettings')||'{}'); if (tr2.targetTakeProfitPercent) tpPct2 = tr2.targetTakeProfitPercent; } catch(e) {}
+        var stopPrice = Number(r.low_1y) * (1 + tpPct2/100);
+        var distStop = ((stopPrice - Number(r.current_price)) / Number(r.current_price) * 100);
+        statusLines.push('距止盈价 +' + distStop.toFixed(2) + '%');
+      }
+      var statusHtml = (statusLines.length > 0)
+        ? '<span style="font-size:10px;line-height:1.4">' + statusLines.join('<br>') + '</span>'
         : '<span class="alert-badge alert-off">未触发</span>';
       var rowCls = triggered ? 'alert-row' : '';
       var typeTag = r.fund_type === 'etf' ? '<span class="tag tag-etf">ETF</span>' : '<span class="tag tag-open">场外</span>';

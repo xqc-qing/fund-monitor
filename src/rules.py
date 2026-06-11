@@ -28,7 +28,7 @@ def _rule_below_target(quote: FundQuote, alert_below: Optional[float]) -> Option
         return None
     if quote.current_price <= alert_below:
         pct = (quote.current_price - alert_below) / alert_below * 100
-        return f"低于一年低点 {alert_below:.4f}（当前 {quote.current_price:.4f}，差距 {pct:+.2f}%）"
+        return f"低于一年低点（差距 {pct:+.2f}%）"
     return None
 
 

@@ -279,7 +279,6 @@ def api_watchlist_check():
         code = fund["code"]
         name = fund.get("name") or code
         ftype = fund.get("type", "open_fund")
-        alert_below = fund.get("alert_below")
         daily_drop_pct = fund.get("daily_drop_pct")
         # 如果名称没解析过（等于代码），再尝试查一次并回写
         if name == code or not name.strip():
@@ -296,9 +295,8 @@ def api_watchlist_check():
             if not quote.name:
                 quote.name = name
             save_price_snapshot(code, quote.name, ftype, quote.current_price, quote.price_date)
-            result = evaluate(quote, alert_below=alert_below, daily_drop_pct=daily_drop_pct)
 
-            # 计算一年低点和止盈价格
+            # 先计算一年低点（从历史数据），然后用它做触发判断
             low_1y = None
             try:
                 from src.fetcher_watch import fetch_history
@@ -309,6 +307,13 @@ def api_watchlist_check():
                         low_1y = round(float(hist[nav_col].min()), 4)
             except Exception:
                 pass
+
+            # 用一年低点做触发判断（而非旧 alert_below 数据）
+            result = evaluate(quote, alert_below=low_1y, daily_drop_pct=daily_drop_pct)
+
+            # 更新存储的 alert_below 为真实的 一年低点
+            fund["alert_below"] = low_1y
+            need_save = True
 
             results.append({
                 "code": code,
