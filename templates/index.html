@@ -329,7 +329,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>代码</th><th>名称</th><th>类型</th><th>当前价格</th><th>日涨跌</th><th>目标价</th><th>触发状态</th><th>操作</th></tr>
+          <tr><th>代码</th><th>名称</th><th>类型</th><th>当前价格</th><th>目标价</th><th>+15%价</th><th>触发状态</th><th>操作</th></tr>
         </thead>
         <tbody id="watchTable">
           <tr><td colspan="8"><div class="empty"><div>点击「立即检查」查看自选基金状态，或在上方添加基金</div></div></td></tr>
@@ -504,10 +504,13 @@ function loadWatchlist() {
     document.getElementById('watchTable').innerHTML = funds.map(f => {
       let typeTag = f.type === 'etf' ? '<span class="tag tag-etf">ETF</span>' : '<span class="tag tag-open">场外</span>';
       const wurl = 'https://fund.eastmoney.com/' + f.code + '.html';
+      let targetStr = f.alert_below ? Number(f.alert_below).toFixed(4) : '-';
+      let plus15Str = f.alert_below ? (Number(f.alert_below) * 1.15).toFixed(4) : '-';
       return `<tr id="row-${f.code}">
         <td style="font-family:monospace"><a class="fund-link" href="${wurl}" onclick="openFund('${f.code}');return false" title="在浏览器中查看详情" style="cursor:pointer">${f.code}</a></td><td>${esc(f.name)}</td><td>${typeTag}</td>
-        <td style="font-family:monospace;color:var(--muted)">未检查</td><td style="color:var(--muted)">-</td>
-        <td>${f.alert_below || '-'}</td>
+        <td style="font-family:monospace;color:var(--muted)">未检查</td>
+        <td style="font-family:monospace">${targetStr}</td>
+        <td style="font-family:monospace">${plus15Str}</td>
         <td><span class="alert-badge alert-off">待检查</span></td>
         <td><button class="btn btn-danger btn-sm" onclick="removeFund('${f.code}')">删除</button></td>
       </tr>`;
@@ -568,11 +571,8 @@ function checkWatchlist() {
     let triggeredCount = 0;
     document.getElementById('watchTable').innerHTML = data.results.map(function(r, i) {
       var priceStr = r.error ? '获取失败' : Number(r.current_price).toFixed(4);
-      var changeStr = '-';
-      if (r.prev_price && r.current_price) {
-        var chg = (Number(r.current_price) - Number(r.prev_price)) / Number(r.prev_price) * 100;
-        changeStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
-      }
+      var targetStr = r.alert_below ? Number(r.alert_below).toFixed(4) : '-';
+      var plus15Str = r.alert_below ? (Number(r.alert_below) * 1.15).toFixed(4) : '-';
       var triggered = r.triggered;
       if (triggered) triggeredCount++;
       var reasonText = (triggered && r.reasons && r.reasons.length > 0) ? r.reasons[0] : '';
@@ -586,8 +586,9 @@ function checkWatchlist() {
         '<td style="font-family:monospace"><a class="fund-link" href="' + fundUrl + '" onclick="openFund(\'' + r.code + '\');return false" title="查看详情" style="cursor:pointer">' + r.code + '</a></td>' +
         '<td>' + esc(r.name) + '</td><td>' + typeTag + '</td>' +
         '<td style="font-family:monospace">' + priceStr + '</td>' +
-        '<td style="font-family:monospace">' + changeStr + '</td>' +
-        '<td>' + (r.alert_below || '-') + '</td><td>' + statusHtml + '</td>' +
+        '<td style="font-family:monospace">' + targetStr + '</td>' +
+        '<td style="font-family:monospace">' + plus15Str + '</td>' +
+        '<td>' + statusHtml + '</td>' +
         '<td><button class="btn btn-danger btn-sm" onclick="removeFund(\'' + r.code + '\')">删除</button> <button class="btn btn-outline btn-sm" onclick="runAgentFor(\'' + r.code + '\')">分析</button></td></tr>';
     }).join('');
     document.getElementById('watchCount').textContent = data.results.length;

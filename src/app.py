@@ -234,14 +234,18 @@ def api_watchlist_add():
     # 如果用户没填名称，自动查询
     if not name:
         name = _lookup_fund_name(code, ftype)
-    # 如果没指定目标价，自动设为当前价格的1.15倍
+    # 尝试从历史数据获取 1 年低点作为默认目标价
     auto_target = None
     if not alert_below:
         try:
-            quote = fetch_quote(code, ftype)
-            if quote and quote.current_price:
-                alert_below = round(quote.current_price * 1.15, 4)
-                auto_target = alert_below
+            from src.fetcher_watch import fetch_history
+            hist = fetch_history(code, ftype, days=365)
+            if hist is not None and not hist.empty:
+                nav_col = "单位净值" if ftype != "etf" else "收盘"
+                if nav_col in hist.columns:
+                    year_low = float(hist[nav_col].min())
+                    alert_below = round(year_low, 4)
+                    auto_target = alert_below
         except Exception:
             pass
     wl.append({
